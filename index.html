@@ -277,7 +277,9 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       </div>
 
       <div class="field" id="autoField" hidden>
-        <label class="check"><input type="checkbox" id="autoCheck"><span>Answer automatically<small>Hold the phone steady on new text for about a second and Readout answers on its own.</small></span></label>
+        <label class="check"><input type="checkbox" id="autoCheck"><span>Answer automatically<small>Move to a new question and hold still. Readout answers on its own, once per question.</small></span></label>
+        <span class="label">Hold time</span>
+        <div class="seg" id="holdSeg"></div>
       </div>
 
       <div class="field">
@@ -327,7 +329,8 @@ window.MathJax = {
     voiceURI: store.get("voiceURI", ""),
     rate: store.get("rate", 1.05),
     speakSteps: store.get("speakSteps", false),
-    auto: store.get("auto", true)
+    auto: store.get("auto", true),
+    holdMs: store.get("holdMs", 900)
   };
   const save = (k, v) => { settings[k] = v; store.set(k, v); };
 
@@ -377,15 +380,11 @@ window.MathJax = {
     history: [],
     current: { read: "Find dy/dx if y = x² sin x.", answer: "\\(\\dfrac{dy}{dx} = 2x\\sin x + x^2\\cos x\\)", say: "d y d x equals two x sine x, plus x squared cosine x.", steps: [] },
     isExample: true,
-    lastSig: null,
-    prevSmall: null,
-    steadyMs: 0,
     lastFire: 0,
     torch: false,
     unlocked: false,
     resume: false,
-    stillUrl: null,
-    answeredAuto: false
+    stillUrl: null
   };
 
   // ---------- toast ----------
@@ -795,7 +794,6 @@ window.MathJax = {
       finishAnswer(p, secs + " s · " + by);
       state.current = { read: p.read, answer: p.answer, say: spokenText(p), steps: p.steps };
       if (p.found) pushHistory(state.current);
-      if (trigger === "auto") { state.answeredAuto = true; updateHint(); }
     } catch (e) {
       if (e && e.code === "cancelled") {
         setTag("", "Stopped");
@@ -854,7 +852,7 @@ window.MathJax = {
     hint.hidden = false;
     let t;
     if (state.backend === "api" && !settings.apiKey.trim()) t = "Add your API key in Settings";
-    else if (state.backend === "api" && settings.auto) t = state.answeredAuto ? "Answered. Point at something new." : "Hold steady on a question";
+    else if (state.backend === "api" && settings.auto) t = autoHint || "Hold steady on a question";
     else t = "Frame the text, then tap the shutter";
     $("hintText").textContent = t;
   }
@@ -874,8 +872,8 @@ window.MathJax = {
       v.srcObject = stream;
       await v.play().catch(() => {});
       state.live = true;
-      state.prevSmall = null;
-      state.steadyMs = 0;
+      auto.prev = null;
+      rearmAuto(true);
       updateMode();
       checkTorch();
       keepAwake();
@@ -921,52 +919,70 @@ window.MathJax = {
     }
   });
 
-  // ---------- hold-steady auto answer (live camera + own API key only) ----------
-  const SW = 80, SH = 60;
+  // ---------- auto answer: move to new text, hold still, it answers (live camera + own API key) ----------
+  // Measured on a coarse, contrast-normalized grid so hand shake and exposure flicker don't count as motion.
+  // A real move (pan to the next question) re-arms it; holding still on the new view fires it.
+  const AW = 64, AH = 48, BW = 16, BH = 12, TICK = 200;
+  const T_STEADY = 0.26;   // smoothed motion below this = holding still
+  const T_MOVE = 0.36;     // one tick above this = you moved to something new
+  const T_RUN = 0.9;       // or a slow pan: consecutive motion above 0.2 adding up to this
   const small = document.createElement("canvas");
-  small.width = SW; small.height = SH;
+  small.width = AW; small.height = AH;
   const sctx = small.getContext("2d", { willReadFrequently: true });
+  const auto = { prev: null, ema: 1, run: 0, steadyMs: 0, armed: true };
   function grabSmall() {
     const v = $("video");
     if (!v.videoWidth) return null;
     const vw = v.videoWidth, vh = v.videoHeight;
     const cw = vw * 0.8, ch = Math.min(vh * 0.6, cw * 0.75);
-    sctx.drawImage(v, (vw - cw) / 2, (vh - ch) / 2, cw, ch, 0, 0, SW, SH);
-    const d = sctx.getImageData(0, 0, SW, SH).data;
-    const g = new Float32Array(SW * SH);
-    for (let i = 0, j = 0; i < g.length; i++, j += 4) g[i] = 0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2];
-    return g;
+    sctx.drawImage(v, (vw - cw) / 2, (vh - ch) / 2, cw, ch, 0, 0, AW, AH);
+    const d = sctx.getImageData(0, 0, AW, AH).data;
+    const n = AW * AH, px = new Float32Array(n);
+    let sum = 0;
+    for (let i = 0, j = 0; i < n; i++, j += 4) { px[i] = 0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2]; sum += px[i]; }
+    const mean = sum / n;
+    let vs = 0;
+    for (let i = 0; i < n; i++) vs += (px[i] - mean) * (px[i] - mean);
+    const std = Math.sqrt(vs / n);
+    const blocks = new Float32Array(BW * BH), bx = AW / BW, by = AH / BH;
+    for (let y = 0; y < AH; y++) for (let x = 0; x < AW; x++) blocks[((y / by) | 0) * BW + ((x / bx) | 0)] += px[y * AW + x] - mean;
+    for (let b = 0; b < blocks.length; b++) blocks[b] /= bx * by;
+    return { blocks, mean, std };
   }
-  function meanDiff(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]); return s / a.length; }
-  function edgeDensity(g) {
-    let n = 0, c = 0;
-    for (let y = 0; y < SH - 1; y++) for (let x = 0; x < SW - 1; x++) {
-      const i = y * SW + x;
-      if (Math.abs(g[i + 1] - g[i]) + Math.abs(g[i + SW] - g[i]) > 28) n++;
-      c++;
-    }
-    return n / c;
-  }
-  const TICK = 200;
+  function blockDiff(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]); return s / a.length; }
+  function rearmAuto(armed) { auto.armed = armed; auto.steadyMs = 0; auto.run = 0; }
+  const HOLDS = [
+    { id: 600, name: "Quick", sub: "0.6 s" },
+    { id: 900, name: "Normal", sub: "0.9 s" },
+    { id: 1400, name: "Patient", sub: "1.4 s" }
+  ];
+  let autoHint = "";
+  function setAutoHint(t) { if (t !== autoHint) { autoHint = t; updateHint(); } }
   setInterval(() => {
-    const eligible = state.live && state.backend === "api" && settings.auto && settings.apiKey.trim()
-      && !state.busy && !document.hidden && $("settings").hidden;
-    if (!eligible) { if (!state.busy) setRing(0); state.steadyMs = 0; state.prevSmall = null; return; }
+    const on = state.live && state.backend === "api" && settings.auto && settings.apiKey.trim()
+      && !document.hidden && $("settings").hidden;
+    if (!on) { if (!state.busy) setRing(0); auto.prev = null; auto.steadyMs = 0; return; }
     const g = grabSmall();
     if (!g) return;
-    const prev = state.prevSmall;
-    state.prevSmall = g;
+    const prev = auto.prev;
+    auto.prev = g;
     if (!prev) return;
-    const motion = meanDiff(g, prev);
-    state.steadyMs = motion < 5 ? state.steadyMs + TICK : 0;
-    const fresh = !state.lastSig || meanDiff(g, state.lastSig) > 16;
-    if (fresh && state.answeredAuto && motion >= 5) { state.answeredAuto = false; updateHint(); }
-    const speaking = !!(window.speechSynthesis && window.speechSynthesis.speaking);
-    const ready = fresh && !speaking && Date.now() - state.lastFire > 3500 && edgeDensity(g) > 0.04;
-    setRing(ready ? state.steadyMs / 1000 : 0);
-    if (ready && state.steadyMs >= 1000) {
-      state.lastSig = g;
-      state.steadyMs = 0;
+    const nm = blockDiff(g.blocks, prev.blocks) / Math.max(g.std, 6);
+    auto.ema = auto.ema * 0.5 + nm * 0.5;
+    auto.run = nm > 0.2 ? auto.run + nm : 0;
+    if (nm > T_MOVE || auto.run > T_RUN) { auto.armed = true; auto.steadyMs = 0; }
+    const content = g.std >= 4 && g.mean > 18;
+    const steady = content && auto.ema < T_STEADY;
+    auto.steadyMs = steady ? auto.steadyMs + TICK : 0;
+    if (state.busy) { setAutoHint("Reading"); return; }
+    const hold = settings.holdMs || 900;
+    if (!auto.armed) { setRing(0); setAutoHint("Answered. Move to the next question."); return; }
+    if (!content) { setRing(0); setAutoHint("Point at some text"); return; }
+    if (!steady) { setRing(0); setAutoHint("Hold steady on a question"); return; }
+    setRing(auto.steadyMs / hold);
+    setAutoHint("Hold still");
+    if (auto.steadyMs >= hold && Date.now() - state.lastFire > 1200) {
+      rearmAuto(false);
       ask("auto");
     }
   }, TICK);
@@ -1025,6 +1041,7 @@ window.MathJax = {
     seg($("modelSeg"), MODELS, settings.model, (id) => { save("model", id); $("modelNote").textContent = MODELS.find((m) => m.id === id).note; });
     $("modelNote").textContent = (MODELS.find((m) => m.id === settings.model) || MODELS[1]).note;
     seg($("tierSeg"), TIERS, settings.tier, (id) => save("tier", id));
+    seg($("holdSeg"), HOLDS, settings.holdMs, (id) => save("holdMs", id));
     loadVoices();
     $("settings").hidden = false;
     if (needKey && api) {
@@ -1045,7 +1062,7 @@ window.MathJax = {
   $("shutter").addEventListener("click", () => {
     unlockSpeech();
     if (state.busy) { if (state.ctl) state.ctl.abort(); return; }
-    if (state.live) { state.lastSig = grabSmall(); ask("tap"); return; }
+    if (state.live) { rearmAuto(false); ask("tap"); return; }
     if (state.backend === "none") { toast(state.note, "warn", 6000); return; }
     if (state.backend === "api" && !settings.apiKey.trim()) { openSettings(true); return; }
     $("snapInput").click();
@@ -1074,7 +1091,7 @@ window.MathJax = {
   $("torchBtn").addEventListener("click", toggleTorch);
   $("autoChip").addEventListener("click", () => {
     save("auto", !settings.auto);
-    state.answeredAuto = false;
+    rearmAuto(true);
     updateMode();
     toast(settings.auto ? "Auto answer on. Hold steady on a question." : "Auto answer off. Tap the shutter to answer.");
   });
@@ -1113,7 +1130,7 @@ window.MathJax = {
     i.type = i.type === "password" ? "text" : "password";
     $("keyShow").textContent = i.type === "password" ? "Show" : "Hide";
   });
-  $("autoCheck").addEventListener("change", (e) => { save("auto", e.target.checked); state.answeredAuto = false; });
+  $("autoCheck").addEventListener("change", (e) => { save("auto", e.target.checked); rearmAuto(true); });
   $("stepsCheck").addEventListener("change", (e) => save("speakSteps", e.target.checked));
   $("rate").addEventListener("input", (e) => {
     save("rate", Number(e.target.value));
