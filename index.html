@@ -1,0 +1,1161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0D0F12">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Readout">
+<meta name="description" content="Point your camera at a question and hear the answer.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Readout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..800&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400..600&display=swap">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{height:100%}body{margin:0;font:14px system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<script>window.__READOUT_PWA__=true;</script>
+</head>
+<body>
+<style>
+/* Layout: full-bleed camera viewfinder; fixed top bar; answer sheet and shutter dock stacked over the lower viewfinder */
+:root {
+  --ink: #0D0F12;
+  --panel: #15181D;
+  --panel-2: #1E2228;
+  --line: #2C313A;
+  --text: #ECE9E2;
+  --muted: #979EA9;
+  --amber: #F2B53A;
+  --amber-ink: #1B1406;
+  --danger: #FF8A78;
+  --scrim: rgba(13, 15, 18, 0.82);
+  --f-ui: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-answer: "Source Serif 4", ui-serif, Georgia, "Times New Roman", serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+html, body { background: var(--ink); color: var(--text); }
+body { font-family: var(--f-ui); -webkit-font-smoothing: antialiased; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+.app { position: fixed; inset: 0; overflow: hidden; background: var(--ink); }
+
+/* Viewfinder */
+.finder { position: absolute; inset: 0; background: radial-gradient(120% 80% at 50% 30%, var(--panel-2), var(--ink) 70%); }
+.finder video, .finder img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: 100%; object-fit: cover; }
+.finder img { opacity: 0.55; }
+.placeholder { position: absolute; left: 50%; width: min(68%, 360px); top: 31%; transform: translate(-50%, -50%); display: grid; gap: 10px; justify-items: center; text-align: center; }
+.ph-title { margin: 0; font-size: 26px; font-weight: 700; font-stretch: 85%; letter-spacing: -0.01em; text-wrap: balance; }
+.ph-sub { margin: 0; max-width: 34ch; color: var(--muted); font-size: 15px; line-height: 1.45; text-wrap: balance; }
+.ph-btn { margin-top: 6px; border: 1px solid var(--amber); background: transparent; color: var(--amber); border-radius: 999px; padding: 9px 18px; font-weight: 600; }
+
+.brackets { position: absolute; left: 50%; top: 31%; width: min(78%, 420px); aspect-ratio: 4 / 3; max-width: 100%; transform: translate(-50%, -50%); pointer-events: none; transition: opacity .3s; }
+.brackets i { position: absolute; width: 26px; height: 26px; border-color: var(--amber); border-style: solid; border-width: 0; }
+.brackets i:nth-child(1) { left: 0; top: 0; border-left-width: 3px; border-top-width: 3px; border-top-left-radius: 6px; }
+.brackets i:nth-child(2) { right: 0; top: 0; border-right-width: 3px; border-top-width: 3px; border-top-right-radius: 6px; }
+.brackets i:nth-child(3) { left: 0; bottom: 0; border-left-width: 3px; border-bottom-width: 3px; border-bottom-left-radius: 6px; }
+.brackets i:nth-child(4) { right: 0; bottom: 0; border-right-width: 3px; border-bottom-width: 3px; border-bottom-right-radius: 6px; }
+.brackets.dim { opacity: 0; }
+.brackets.thinking { animation: pulse 1.1s ease-in-out infinite; }
+.brackets.flash { animation: flash .35s ease-out; }
+@keyframes pulse { 50% { opacity: .35; transform: translate(-50%, -50%) scale(.97); } }
+@keyframes flash { 0% { transform: translate(-50%, -50%) scale(1.06); } 100% { transform: translate(-50%, -50%) scale(1); } }
+
+.hint { position: absolute; left: 16px; right: 16px; top: calc(31% - min(29vw, 158px) - 34px); text-align: center; pointer-events: none; }
+.hint span { display: inline-block; padding: 5px 12px; border-radius: 999px; background: var(--scrim); color: var(--text); font-size: 13px; font-weight: 500; letter-spacing: .01em; }
+
+/* Top bar */
+.bar { position: absolute; top: 0; left: 0; right: 0; padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: linear-gradient(to bottom, var(--scrim), transparent); z-index: 3; }
+.mark { display: flex; align-items: center; gap: 8px; font-weight: 750; font-stretch: 80%; font-size: 19px; letter-spacing: .02em; text-transform: uppercase; }
+.mark svg { width: 18px; height: 18px; color: var(--amber); }
+.bar-actions { display: flex; align-items: center; gap: 8px; }
+.chip { border: 1px solid var(--line); background: var(--scrim); border-radius: 999px; padding: 5px 11px; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.chip.live { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 45%, transparent); }
+button.chip[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
+.icon-btn { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: var(--scrim); color: var(--text); padding: 0; }
+.icon-btn svg { width: 19px; height: 19px; }
+.icon-btn[aria-pressed="false"] { color: var(--muted); }
+.icon-btn[aria-pressed="true"].torch { color: var(--amber); border-color: var(--amber); }
+.icon-btn.lg { width: 50px; height: 50px; }
+.icon-btn.lg svg { width: 22px; height: 22px; }
+
+/* Bottom stack */
+.bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 16px calc(env(safe-area-inset-bottom, 0px) + 14px); display: flex; flex-direction: column; gap: 14px; z-index: 2; pointer-events: none; }
+.bottom > * { pointer-events: auto; }
+.toast { align-self: center; max-width: 100%; padding: 8px 14px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line); font-size: 13.5px; line-height: 1.35; text-align: center; }
+.toast.warn { border-color: color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger); }
+
+.sheet { position: relative; max-height: 42%; max-height: 42dvh; overflow-y: auto; overscroll-behavior: contain; background: color-mix(in srgb, var(--panel) 94%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--line); border-radius: 18px; padding: 8px 16px 14px; display: grid; gap: 10px; transition: max-height .25s ease; }
+.sheet.expanded { max-height: 74%; max-height: 74dvh; }
+.grip { justify-self: center; width: 46px; height: 14px; border: 0; background: transparent; padding: 0; position: relative; }
+.grip::after { content: ""; position: absolute; left: 7px; right: 7px; top: 5px; height: 4px; border-radius: 4px; background: var(--line); }
+.meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tag { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; background: var(--panel-2); color: var(--muted); }
+.tag.is-answer { background: var(--amber); color: var(--amber-ink); }
+.tag.is-working { color: var(--amber); }
+.tag.is-error { color: var(--danger); }
+.read { display: grid; gap: 4px; min-width: 0; }
+.label { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.read p { margin: 0; font-family: var(--f-mono); font-size: 13px; line-height: 1.5; color: color-mix(in srgb, var(--text) 82%, var(--muted)); white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.sheet.expanded .read p { -webkit-line-clamp: unset; display: block; }
+.answer { font-family: var(--f-answer); font-size: 21px; line-height: 1.38; font-weight: 500; white-space: pre-line; overflow-wrap: anywhere; min-width: 0; overflow-x: auto; }
+.answer.streaming { color: color-mix(in srgb, var(--text) 70%, var(--muted)); }
+.answer.quiet { font-size: 17px; color: var(--muted); }
+.answer mjx-container[display="true"], .steps mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; max-width: 100%; }
+.working-line { display: flex; align-items: center; gap: 10px; color: var(--muted); font-family: var(--f-ui); font-size: 15px; font-weight: 500; }
+.working-line::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--amber); border-right-color: transparent; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--panel-2); border-radius: 999px; padding: 7px 13px; font-size: 13px; font-weight: 600; }
+.pill svg { width: 15px; height: 15px; }
+details { border-top: 1px solid var(--line); padding-top: 8px; }
+summary { cursor: pointer; font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); list-style: none; display: flex; align-items: center; gap: 6px; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "+"; font-family: var(--f-mono); color: var(--amber); width: 12px; }
+details[open] > summary::before { content: "\2212"; }
+.steps ol { margin: 8px 0 2px; padding-left: 22px; display: grid; gap: 6px; font-family: var(--f-answer); font-size: 16px; line-height: 1.45; }
+.steps li::marker { color: var(--amber); font-family: var(--f-mono); font-size: 13px; }
+.history ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.history button { width: 100%; text-align: left; display: grid; gap: 2px; border: 1px solid var(--line); background: var(--panel-2); border-radius: 12px; padding: 8px 12px; min-width: 0; }
+.history .h-read { font-family: var(--f-mono); font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history .h-ans { font-family: var(--f-answer); font-size: 15px; overflow-wrap: anywhere; }
+
+/* Dock */
+.dock { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; justify-items: center; }
+.shutter { position: relative; width: 78px; height: 78px; border-radius: 50%; border: 0; background: transparent; padding: 0; display: grid; place-items: center; }
+.shutter svg.ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.shutter .track { fill: none; stroke: var(--text); stroke-width: 4; opacity: .9; }
+.shutter .prog { fill: none; stroke: var(--amber); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 226.2; stroke-dashoffset: 226.2; transition: stroke-dashoffset .2s linear; }
+.shutter .core { width: 60px; height: 60px; border-radius: 50%; background: var(--text); display: grid; place-items: center; transition: transform .15s, border-radius .2s, width .2s, height .2s, background .2s; }
+.shutter .core svg { width: 26px; height: 26px; color: var(--ink); }
+.shutter:active .core { transform: scale(.92); }
+.shutter.busy .core { width: 30px; height: 30px; border-radius: 7px; background: var(--amber); }
+.shutter.busy .core svg { display: none; }
+.shutter.busy .track { stroke: var(--amber); stroke-dasharray: 60 166; animation: spin 1s linear infinite; transform-origin: 50% 50%; }
+.spacer { visibility: hidden; }
+
+/* Settings */
+.settings { position: absolute; inset: 0; z-index: 10; background: rgba(5, 6, 8, .6); display: flex; align-items: flex-end; justify-content: center; }
+.settings-panel { width: 100%; max-width: 560px; max-height: 88%; max-height: 88dvh; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-bottom: 0; border-radius: 20px 20px 0 0; padding: 18px 16px calc(env(safe-area-inset-bottom, 0px) + 18px); display: grid; gap: 18px; }
+.settings-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.settings-head h2 { margin: 0; font-size: 20px; font-weight: 700; font-stretch: 85%; letter-spacing: .01em; }
+.field { display: grid; gap: 7px; min-width: 0; }
+.field > label:not(.check), .field > .label { font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.field p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.field p a { color: var(--amber); }
+.input { width: 100%; box-sizing: border-box; min-width: 0; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; font-size: 15px; }
+.input.mono { font-family: var(--f-mono); font-size: 13.5px; }
+.row { display: flex; gap: 8px; align-items: center; }
+.row .input { flex: 1; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line); }
+.seg button { border: 0; background: transparent; border-radius: 9px; padding: 9px 6px; font-size: 14px; font-weight: 600; color: var(--muted); display: grid; gap: 1px; }
+.seg button small { font-size: 11px; font-weight: 500; opacity: .8; }
+.seg button[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); }
+.check { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; line-height: 1.35; }
+.check input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--amber); flex: none; }
+.check span small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+input[type="range"] { width: 100%; accent-color: var(--amber); }
+.done-btn { border: 0; background: var(--amber); color: var(--amber-ink); font-weight: 700; border-radius: 12px; padding: 13px; font-size: 16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+
+<div class="app" id="app">
+  <div class="finder" id="finder">
+    <video id="video" playsinline muted autoplay hidden></video>
+    <img id="still" alt="Last photo sent to Claude" hidden>
+    <div class="placeholder" id="placeholder">
+      <p class="ph-title" id="phTitle">Snap a question</p>
+      <p class="ph-sub" id="phSub">Tap the shutter to open your camera. Readout reads the text and answers out loud.</p>
+      <button class="ph-btn" id="camRetry" type="button" hidden>Turn on camera</button>
+    </div>
+    <div class="brackets" id="brackets" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="hint" id="hint" hidden><span id="hintText">Hold steady on a question</span></div>
+  </div>
+
+  <header class="bar">
+    <div class="mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M8 10h8M8 14h5"/></svg>
+      Readout
+    </div>
+    <div class="bar-actions">
+      <button class="chip" id="autoChip" type="button" aria-pressed="true" hidden>Auto</button>
+      <span class="chip" id="modeChip">Photo</span>
+      <button class="icon-btn torch" id="torchBtn" type="button" aria-label="Flashlight" aria-pressed="false" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2h8v4l-2 4v11a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V10L8 6z"/><path d="M12 13v2"/></svg>
+      </button>
+      <button class="icon-btn" id="voiceBtn" type="button" aria-label="Voice answers" aria-pressed="true">
+        <svg id="voiceOnIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+        <svg id="voiceOffIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 6 6M22 9l-6 6"/></svg>
+      </button>
+      <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="bottom">
+    <div class="toast" id="toast" role="status" hidden></div>
+
+    <section class="sheet" id="sheet" aria-live="polite" aria-label="Answer">
+      <button class="grip" id="grip" type="button" aria-label="Expand answer" aria-expanded="false"></button>
+      <div class="meta"><span class="tag" id="tag">Example</span><span id="metaText">This is what an answer looks like</span></div>
+      <div class="read" id="readBox"><span class="label">Read</span><p id="readText">Find dy/dx if y = x² sin x.</p></div>
+      <div class="answer" id="answerText">\(\dfrac{dy}{dx} = 2x\sin x + x^2\cos x\)</div>
+      <div class="actions" id="actions">
+        <button class="pill" id="replayBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>Hear it</button>
+        <button class="pill" id="copyBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy</button>
+      </div>
+      <details class="steps" id="stepsBox">
+        <summary id="stepsSummary">Steps (3)</summary>
+        <ol id="stepsList">
+          <li>Product rule: \((uv)' = u'v + uv'\)</li>
+          <li>\(u = x^2,\ u' = 2x\) and \(v = \sin x,\ v' = \cos x\)</li>
+          <li>\(y' = 2x\sin x + x^2\cos x\)</li>
+        </ol>
+      </details>
+      <details class="history" id="historyBox" hidden>
+        <summary id="historySummary">Earlier</summary>
+        <ul id="historyList"></ul>
+      </details>
+    </section>
+
+    <nav class="dock" aria-label="Camera controls">
+      <button class="icon-btn lg" id="libraryBtn" type="button" aria-label="Choose a photo from your library">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-9 9"/></svg>
+      </button>
+      <button class="shutter" id="shutter" type="button" aria-label="Answer what's in view">
+        <svg class="ring" viewBox="0 0 78 78" aria-hidden="true"><circle class="track" cx="39" cy="39" r="36"/><circle class="prog" id="prog" cx="39" cy="39" r="36"/></svg>
+        <span class="core"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M8 10h8M8 14h5"/></svg></span>
+      </button>
+      <button class="icon-btn lg spacer" id="flipBtn" type="button" aria-label="Switch camera">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 3v5h5"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 21v-5h-5"/></svg>
+      </button>
+    </nav>
+  </div>
+
+  <input type="file" id="snapInput" accept="image/*" capture="environment" hidden>
+  <input type="file" id="pickInput" accept="image/*" hidden>
+
+  <div class="settings" id="settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
+    <div class="settings-panel">
+      <div class="settings-head">
+        <h2 id="settingsTitle">Settings</h2>
+        <button class="icon-btn" id="settingsClose" type="button" aria-label="Close settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+
+      <div class="field" id="keyField" hidden>
+        <label for="apiKey">Anthropic API key</label>
+        <div class="row">
+          <input class="input mono" id="apiKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-ant-...">
+          <button class="pill" id="keyShow" type="button">Show</button>
+        </div>
+        <p>Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. It stays on this phone and is sent only to Anthropic.</p>
+      </div>
+
+      <div class="field" id="modelField" hidden>
+        <span class="label">Model</span>
+        <div class="seg" id="modelSeg"></div>
+        <p id="modelNote"></p>
+      </div>
+
+      <div class="field" id="tierField" hidden>
+        <span class="label">Thinking</span>
+        <div class="seg" id="tierSeg"></div>
+        <p>Answers run on your Claude plan. The first one asks your permission.</p>
+      </div>
+
+      <div class="field" id="autoField" hidden>
+        <label class="check"><input type="checkbox" id="autoCheck"><span>Answer automatically<small>Hold the phone steady on new text for about a second and Readout answers on its own.</small></span></label>
+      </div>
+
+      <div class="field">
+        <label for="voiceSelect">Voice</label>
+        <select class="input" id="voiceSelect"></select>
+        <label for="rate" id="rateLabel">Speed 1.05x</label>
+        <input type="range" id="rate" min="0.7" max="1.6" step="0.05" value="1.05">
+        <label class="check"><input type="checkbox" id="stepsCheck"><span>Read the steps aloud too<small>Off reads only the answer.</small></span></label>
+        <button class="pill" id="testVoice" type="button" style="justify-self:start">Test voice</button>
+      </div>
+
+      <button class="done-btn" id="settingsDone" type="button">Done</button>
+    </div>
+  </div>
+</div>
+
+<script>
+window.MathJax = {
+  tex: { inlineMath: [["\\(", "\\)"], ["$", "$"]], displayMath: [["\\[", "\\]"], ["$$", "$$"]], processEscapes: true },
+  svg: { fontCache: "global" },
+  options: { enableMenu: false },
+  startup: {
+    typeset: false,
+    ready() {
+      MathJax.startup.defaultReady();
+      MathJax.startup.promise.then(() => { if (window.__readoutMath) window.__readoutMath(); });
+    }
+  }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" async></script>
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- settings (per device) ----------
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("readout." + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem("readout." + k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } }
+  };
+  const settings = {
+    apiKey: store.get("apiKey", ""),
+    model: store.get("model", "claude-sonnet-5-5"),
+    tier: store.get("tier", "default"),
+    voiceOn: store.get("voiceOn", true),
+    voiceURI: store.get("voiceURI", ""),
+    rate: store.get("rate", 1.05),
+    speakSteps: store.get("speakSteps", false),
+    auto: store.get("auto", true)
+  };
+  const save = (k, v) => { settings[k] = v; store.set(k, v); };
+
+  const MODELS = [
+    { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5", sub: "Fastest", note: "Fastest replies. Roughly a third of a cent per answer." },
+    { id: "claude-sonnet-5-5", name: "Sonnet 5.5", sub: "Balanced", note: "Strong on math and reading. Roughly half a cent to a cent per answer." },
+    { id: "claude-opus-5-5", name: "Opus 5.5", sub: "Smartest", note: "Best for hard problems. Roughly one to two cents per answer." }
+  ];
+  const TIERS = [
+    { id: "quick", name: "Quick", sub: "Instant" },
+    { id: "default", name: "Balanced", sub: "Thinks first" },
+    { id: "complex", name: "Deep", sub: "Hard problems" }
+  ];
+
+  const PROMPT = [
+    "You are Readout, a phone camera assistant. The image is a photo someone just took of something with text in it: a worksheet, a textbook, a screen, a whiteboard, a sign, a menu, a label.",
+    "",
+    "1. Read the text that is the focus of the photo. Ignore background clutter and text cut off at the edges unless it matters.",
+    "2. Respond to it:",
+    "- A question, problem or exercise: solve it and give the final answer. For multiple choice, give the letter and the option.",
+    "- A prompt or instruction: do it, briefly.",
+    "- Text in another language: translate it into English.",
+    "- Plain text with no question (a sign, a label, a paragraph): say what it says or means in one or two sentences, plus anything genuinely useful.",
+    "- Several questions: answer each one on its own line, numbered.",
+    "3. Be correct first, then brief. Check your arithmetic.",
+    "",
+    "Reply in exactly this format, with these four labels at the start of their lines and nothing before READ:",
+    "READ: the text you read, trimmed to what matters, at most 400 characters. Write NONE if there is no readable text.",
+    "ANSWER: the answer, short and direct. Use \\( \\) for inline math and \\[ \\] for displayed math. Write a money dollar sign as \\$.",
+    "SAY: the answer as it should be read aloud: plain spoken words, no symbols or LaTeX, at most 50 words.",
+    "STEPS: only if the problem needs work, up to 6 short lines, each starting with \"- \", math allowed. Otherwise write NONE."
+  ].join("\n");
+
+  // ---------- environment ----------
+  const IN_VIEWER = !!(window.claude && typeof window.claude.use === "function");
+  const CAN_LIVE = !IN_VIEWER && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+  const state = {
+    backend: IN_VIEWER ? "pending" : "api", // pending | sample | api | none
+    note: "",
+    sample: null,
+    live: false,
+    stream: null,
+    facing: store.get("facing", "environment"),
+    busy: false,
+    ctl: null,
+    history: [],
+    current: { read: "Find dy/dx if y = x² sin x.", answer: "\\(\\dfrac{dy}{dx} = 2x\\sin x + x^2\\cos x\\)", say: "d y d x equals two x sine x, plus x squared cosine x.", steps: [] },
+    isExample: true,
+    lastSig: null,
+    prevSmall: null,
+    steadyMs: 0,
+    lastFire: 0,
+    torch: false,
+    unlocked: false,
+    resume: false,
+    stillUrl: null,
+    answeredAuto: false
+  };
+
+  // ---------- toast ----------
+  let toastTimer = 0;
+  function toast(msg, kind, ms) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.className = "toast" + (kind === "warn" ? " warn" : "");
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, ms || 3800);
+  }
+
+  // ---------- math ----------
+  const pendingMath = new Set();
+  function typeset(el) {
+    const MJ = window.MathJax;
+    if (MJ && typeof MJ.typesetPromise === "function") {
+      try { if (MJ.typesetClear) MJ.typesetClear([el]); } catch (e) { /* ignore */ }
+      MJ.typesetPromise([el]).catch(() => {});
+    } else {
+      pendingMath.add(el);
+    }
+  }
+  window.__readoutMath = () => { pendingMath.forEach((el) => typeset(el)); pendingMath.clear(); };
+  pendingMath.add($("answerText"));
+  pendingMath.add($("stepsList"));
+
+  // ---------- speech ----------
+  let voices = [];
+  function loadVoices() {
+    try { voices = (window.speechSynthesis && window.speechSynthesis.getVoices()) || []; } catch (e) { voices = []; }
+    fillVoices();
+  }
+  function pickVoice() {
+    return voices.find((v) => v.voiceURI === settings.voiceURI)
+      || voices.find((v) => /^en[-_]US/i.test(v.lang) && /samantha|ava|google us|aria|jenny|natural|premium|enhanced/i.test(v.name))
+      || voices.find((v) => /^en/i.test(v.lang) && v.default)
+      || voices.find((v) => /^en[-_]US/i.test(v.lang))
+      || voices.find((v) => /^en/i.test(v.lang))
+      || null;
+  }
+  function speak(text) {
+    const ss = window.speechSynthesis;
+    if (!ss || !text) return;
+    try {
+      ss.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      const v = pickVoice();
+      if (v) { u.voice = v; u.lang = v.lang; }
+      u.rate = settings.rate;
+      ss.speak(u);
+      if (!state.unlocked) toast("Tap Hear it if you don't hear anything. Phones only allow sound after a tap.", null, 4500);
+    } catch (e) { /* speech unavailable */ }
+  }
+  function unlockSpeech() {
+    const ss = window.speechSynthesis;
+    if (!ss || state.unlocked) return;
+    try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; ss.speak(u); state.unlocked = true; } catch (e) { /* ignore */ }
+  }
+  document.addEventListener("pointerdown", unlockSpeech, { once: true, capture: true });
+
+  function toSpeech(s) {
+    return String(s || "")
+      .replace(/\\\$\s?(\d[\d,.]*)/g, " $1 dollars ").replace(/\\\$/g, " dollars ")
+      .replace(/\\\(|\\\)|\\\[|\\\]|\$\$?/g, " ")
+      .replace(/\\d?frac\{([^{}]*)\}\{([^{}]*)\}/g, " $1 over $2 ")
+      .replace(/\\sqrt\{([^{}]*)\}/g, " square root of $1 ")
+      .replace(/\^\{?2\}?/g, " squared ").replace(/\^\{?3\}?/g, " cubed ")
+      .replace(/\^\{([^{}]*)\}/g, " to the $1 ").replace(/\^(\w)/g, " to the $1 ")
+      .replace(/\\(cdot|times)/g, " times ").replace(/\\pi/g, " pi ")
+      .replace(/\\(sin|cos|tan|ln|log|lim|int|sum)/g, " $1 ")
+      .replace(/\\[a-zA-Z]+/g, " ").replace(/[{}_\\]/g, " ")
+      .replace(/\s=\s|=/g, " equals ").replace(/\s+/g, " ").trim();
+  }
+
+  // ---------- reply parsing ----------
+  const ORDER = ["READ", "ANSWER", "SAY", "STEPS"];
+  function parseReply(t, done) {
+    const re = /^[ \t>*#]*\**(READ|ANSWER|SAY|STEPS)\**[ \t]*:\**[ \t]*/gim;
+    const marks = [];
+    let m, at = -1;
+    while ((m = re.exec(t))) {
+      const k = m[1].toUpperCase();
+      const idx = ORDER.indexOf(k);
+      if (idx > at) { marks.push({ k, s: m.index, e: re.lastIndex }); at = idx; }
+    }
+    const isNone = (s) => /^none\.?$/i.test(String(s || "").trim());
+    if (!marks.length) {
+      const a = t.trim();
+      return { read: "", answer: a, say: done ? toSpeech(a) : "", steps: [], found: true, answerDone: done, sayDone: done, stepsDone: done };
+    }
+    const sec = {}, fin = {};
+    marks.forEach((mk, i) => {
+      const end = i + 1 < marks.length ? marks[i + 1].s : t.length;
+      sec[mk.k] = t.slice(mk.e, end).trim();
+      fin[mk.k] = i + 1 < marks.length || done;
+    });
+    const readRaw = sec.READ || "";
+    const found = !(fin.READ && isNone(readRaw));
+    const steps = sec.STEPS && !isNone(sec.STEPS)
+      ? sec.STEPS.split(/\n+/).map((s) => s.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim()).filter((s) => s && !isNone(s)).slice(0, 8)
+      : [];
+    let say = sec.SAY || "";
+    if (done && !say) say = toSpeech(sec.ANSWER || "");
+    return {
+      read: isNone(readRaw) ? "" : readRaw,
+      answer: sec.ANSWER || "",
+      say,
+      steps,
+      found,
+      answerDone: !!fin.ANSWER || done,
+      sayDone: !!fin.SAY,
+      stepsDone: !!fin.STEPS || done
+    };
+  }
+
+  // ---------- rendering ----------
+  let rs = null; // per-answer render state
+  function setTag(kind, text) {
+    const tag = $("tag");
+    tag.className = "tag" + (kind ? " is-" + kind : "");
+    tag.textContent = text;
+  }
+  function beginAnswer() {
+    rs = { answerRaw: null, answerTypeset: false, stepsKey: "", stepsTypeset: false };
+    state.isExample = false;
+    setTag("working", "Reading");
+    $("metaText").textContent = "Sending to Claude";
+    $("readBox").hidden = true;
+    const a = $("answerText");
+    a.className = "answer";
+    a.innerHTML = "";
+    const w = document.createElement("div");
+    w.className = "working-line";
+    w.textContent = "Reading the text";
+    a.appendChild(w);
+    $("actions").hidden = true;
+    $("stepsBox").hidden = true;
+    $("stepsBox").open = false;
+  }
+  function renderAnswer(p, done) {
+    if (p.read || (done && !p.found)) {
+      $("readBox").hidden = false;
+      $("readText").textContent = p.read || "No readable text in view.";
+    }
+    const a = $("answerText");
+    if (done && !p.found) {
+      a.className = "answer quiet";
+      a.textContent = "Nothing to answer here. Get closer so the text fills the brackets, then try again.";
+      $("stepsBox").hidden = true;
+      return;
+    }
+    if (p.answer && p.answer !== rs.answerRaw) {
+      rs.answerRaw = p.answer;
+      rs.answerTypeset = false;
+      a.className = "answer" + (p.answerDone ? "" : " streaming");
+      a.textContent = p.answer;
+      setTag("working", "Answering");
+    }
+    if (p.answer && p.answerDone && !rs.answerTypeset) {
+      rs.answerTypeset = true;
+      a.className = "answer";
+      typeset(a);
+    }
+    const key = p.steps.join("\n");
+    if (key !== rs.stepsKey) {
+      rs.stepsKey = key;
+      rs.stepsTypeset = false;
+      const ol = $("stepsList");
+      ol.innerHTML = "";
+      p.steps.forEach((s) => { const li = document.createElement("li"); li.textContent = s; ol.appendChild(li); });
+      $("stepsSummary").textContent = "Steps (" + p.steps.length + ")";
+      $("stepsBox").hidden = !p.steps.length;
+    }
+    if (p.steps.length && p.stepsDone && !rs.stepsTypeset) {
+      rs.stepsTypeset = true;
+      typeset($("stepsList"));
+    }
+  }
+  function finishAnswer(p, meta) {
+    $("actions").hidden = !p.found;
+    if (p.found) setTag("answer", "Answer"); else setTag("", "No text");
+    $("metaText").textContent = meta;
+  }
+  function showError(msg) {
+    setTag("error", "Couldn't answer");
+    $("metaText").textContent = "";
+    const a = $("answerText");
+    a.className = "answer quiet";
+    a.textContent = msg;
+    $("actions").hidden = true;
+  }
+
+  function pushHistory(entry) {
+    state.history.unshift(entry);
+    state.history = state.history.slice(0, 8);
+    const prev = state.history.slice(1);
+    $("historyBox").hidden = !prev.length;
+    $("historySummary").textContent = "Earlier (" + prev.length + ")";
+    const ul = $("historyList");
+    ul.innerHTML = "";
+    prev.forEach((h) => {
+      const li = document.createElement("li");
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("aria-label", "Hear this earlier answer");
+      const r = document.createElement("span"); r.className = "h-read"; r.textContent = h.read || "Photo";
+      const an = document.createElement("span"); an.className = "h-ans"; an.textContent = h.answer;
+      b.append(r, an);
+      b.addEventListener("click", () => { unlockSpeech(); speak(h.say || toSpeech(h.answer)); });
+      li.appendChild(b);
+      ul.appendChild(li);
+    });
+    if (prev.length) typeset(ul);
+  }
+
+  // ---------- images ----------
+  function fitCanvas(src, w, h) {
+    const scale = Math.min(1, 1568 / Math.max(w, h), Math.sqrt(1150000 / (w * h)));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(w * scale));
+    c.height = Math.max(1, Math.round(h * scale));
+    c.getContext("2d").drawImage(src, 0, 0, c.width, c.height);
+    return c;
+  }
+  function toJpeg(c) {
+    return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("encode"))), "image/jpeg", 0.86));
+  }
+  async function fileCanvas(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      return fitCanvas(img, img.naturalWidth, img.naturalHeight);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+  function videoCanvas() {
+    const v = $("video");
+    if (!state.live || !v.videoWidth) return null;
+    return fitCanvas(v, v.videoWidth, v.videoHeight);
+  }
+  function showStill(blob) {
+    if (state.stillUrl) URL.revokeObjectURL(state.stillUrl);
+    state.stillUrl = URL.createObjectURL(blob);
+    const img = $("still");
+    img.src = state.stillUrl;
+    img.hidden = false;
+    $("placeholder").hidden = true;
+  }
+  function blobToBase64(blob) {
+    return new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res(String(fr.result).split(",")[1] || "");
+      fr.onerror = () => rej(fr.error);
+      fr.readAsDataURL(blob);
+    });
+  }
+
+  // ---------- Claude ----------
+  async function callApi(blob, onText, signal) {
+    const data = await blobToBase64(blob);
+    let res;
+    try {
+      res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        signal,
+        headers: {
+          "x-api-key": settings.apiKey.trim(),
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+          "anthropic-dangerous-direct-browser-access": "true"
+        },
+        body: JSON.stringify({
+          model: settings.model,
+          max_tokens: 1500,
+          stream: true,
+          messages: [{ role: "user", content: [
+            { type: "image", source: { type: "base64", media_type: "image/jpeg", data } },
+            { type: "text", text: PROMPT }
+          ] }]
+        })
+      });
+    } catch (e) {
+      if (e && e.name === "AbortError") throw { code: "cancelled" };
+      throw { code: "network" };
+    }
+    if (!res.ok) {
+      let msg = "";
+      try { const j = await res.json(); msg = (j && j.error && j.error.message) || ""; } catch (e) { /* not json */ }
+      throw { code: "api", status: res.status, message: msg };
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "", text = "";
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, i).trim();
+          buf = buf.slice(i + 1);
+          if (!line.startsWith("data:")) continue;
+          let ev;
+          try { ev = JSON.parse(line.slice(5).trim()); } catch (e) { continue; }
+          if (ev.type === "content_block_delta" && ev.delta && ev.delta.type === "text_delta") {
+            text += ev.delta.text;
+            onText(text);
+          } else if (ev.type === "error") {
+            throw { code: "api", status: 529, message: (ev.error && ev.error.message) || "" };
+          }
+        }
+      }
+    } catch (e) {
+      if (e && e.name === "AbortError") throw { code: "cancelled", text };
+      throw e;
+    }
+    if (!text.trim()) throw { code: "empty_completion" };
+    return text;
+  }
+
+  function errorText(e) {
+    const c = e && e.code;
+    if (c === "api") {
+      const s = e.status, m = e.message || "";
+      if (s === 401) return "Anthropic rejected that API key. Paste it again in Settings.";
+      if (s === 403) return "This API key isn't allowed to use that model. Try another model in Settings.";
+      if (s === 429) return "Too many requests in a row. Wait a few seconds and try again.";
+      if (s === 529 || s === 503) return "Claude is overloaded right now. Try again in a moment.";
+      if (/credit|billing|balance/i.test(m)) return "Your Anthropic account is out of credit. Add some at console.anthropic.com.";
+      return m ? "Anthropic said: " + m : "The request failed (error " + s + "). Try again.";
+    }
+    switch (c) {
+      case "network": return "No connection to Anthropic. Check your internet and try again.";
+      case "not_granted": return "Claude access is off for this page. Turn it on from the page's Permissions menu, then try again.";
+      case "sampling_disabled": return "Claude isn't available on this account.";
+      case "images_unavailable": return "This view can't send photos to Claude. Open Readout in the Claude app or on claude.ai.";
+      case "image_rejected": return "Claude couldn't open that photo. Take another one.";
+      case "rate_limited": return "You've hit a usage limit. Wait a bit, then try again.";
+      case "session_expired": return "Sign in to Claude again, then try again.";
+      case "refused": return "Claude didn't answer this one.";
+      case "empty_completion": return "No answer came back. Try a clearer, closer shot.";
+      default: return "Something went wrong reaching Claude. Try again.";
+    }
+  }
+
+  function modelName() { const m = MODELS.find((x) => x.id === settings.model); return m ? m.name : settings.model; }
+  function tierName(id) { const t = TIERS.find((x) => x.id === id); return t ? t.name : "Claude"; }
+
+  async function ask(trigger, file) {
+    if (state.busy) return;
+    if (state.backend === "pending") { toast("Connecting to Claude. Try again in a second."); return; }
+    if (state.backend === "none") { toast(state.note, "warn", 6000); return; }
+    if (state.backend === "api" && !settings.apiKey.trim()) { openSettings(true); return; }
+
+    let canvas;
+    try { canvas = file ? await fileCanvas(file) : videoCanvas(); }
+    catch (e) { toast("That photo couldn't be opened. Try another one.", "warn"); return; }
+    if (!canvas) { toast("The camera is still starting."); return; }
+    let blob;
+    try { blob = await toJpeg(canvas); } catch (e) { toast("That photo couldn't be prepared. Try again.", "warn"); return; }
+    if (file) showStill(blob);
+
+    state.busy = true;
+    state.ctl = new AbortController();
+    setBusy(true);
+    flashBrackets();
+    beginAnswer();
+    if (window.speechSynthesis) { try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ } }
+
+    const t0 = performance.now();
+    let spoken = false;
+    const spokenText = (p) => p.say + (settings.speakSteps && p.steps.length ? ". " + p.steps.map(toSpeech).join(". ") : "");
+    const onUpdate = (text, done) => {
+      const p = parseReply(text, done);
+      renderAnswer(p, done);
+      if (!spoken && settings.voiceOn && p.found && p.say && (done || (p.sayDone && !settings.speakSteps))) {
+        spoken = true;
+        speak(spokenText(p));
+      }
+      return p;
+    };
+
+    try {
+      let text, by;
+      if (state.backend === "sample") {
+        const r = await state.sample(PROMPT, {
+          images: blob,
+          modelTier: settings.tier,
+          signal: state.ctl.signal,
+          onText: ({ text: t }) => onUpdate(t, false)
+        });
+        text = r.text;
+        by = tierName(r.modelTierApplied || settings.tier);
+        if (r.truncated) toast("The answer was cut short. Try framing just one question.");
+      } else {
+        text = await callApi(blob, (t) => onUpdate(t, false), state.ctl.signal);
+        by = modelName();
+      }
+      const p = onUpdate(text, true);
+      const secs = ((performance.now() - t0) / 1000).toFixed(1);
+      finishAnswer(p, secs + " s · " + by);
+      state.current = { read: p.read, answer: p.answer, say: spokenText(p), steps: p.steps };
+      if (p.found) pushHistory(state.current);
+      if (trigger === "auto") { state.answeredAuto = true; updateHint(); }
+    } catch (e) {
+      if (e && e.code === "cancelled") {
+        setTag("", "Stopped");
+        $("metaText").textContent = "";
+        if (!rs || !rs.answerRaw) { $("answerText").className = "answer quiet"; $("answerText").textContent = "Stopped before an answer came back."; }
+      } else {
+        showError(errorText(e));
+        if (e && e.code === "api" && e.status === 401) openSettings(true);
+      }
+    } finally {
+      state.busy = false;
+      state.ctl = null;
+      state.lastFire = Date.now();
+      setBusy(false);
+    }
+  }
+
+  // ---------- busy / brackets ----------
+  function setBusy(b) {
+    const s = $("shutter");
+    s.classList.toggle("busy", b);
+    s.setAttribute("aria-label", b ? "Stop" : "Answer what's in view");
+    $("brackets").classList.toggle("thinking", b);
+    setRing(0);
+  }
+  function flashBrackets() {
+    const br = $("brackets");
+    br.classList.remove("flash");
+    void br.offsetWidth;
+    br.classList.add("flash");
+  }
+  function setRing(p) {
+    $("prog").style.strokeDashoffset = String(226.2 * (1 - Math.max(0, Math.min(1, p))));
+  }
+
+  // ---------- camera ----------
+  function updateMode() {
+    const live = state.live;
+    const chip = $("modeChip");
+    chip.textContent = live ? "Live" : "Photo";
+    chip.classList.toggle("live", live);
+    $("video").hidden = !live;
+    if (live) { $("still").hidden = true; $("placeholder").hidden = true; }
+    else if ($("still").hidden) { $("placeholder").hidden = false; }
+    $("flipBtn").classList.toggle("spacer", !live);
+    $("flipBtn").tabIndex = live ? 0 : -1;
+    $("autoChip").hidden = !(live && state.backend === "api");
+    $("autoChip").setAttribute("aria-pressed", String(settings.auto));
+    $("autoField").hidden = !(live && state.backend === "api");
+    if (!live) $("torchBtn").hidden = true;
+    updateHint();
+  }
+  function updateHint() {
+    const hint = $("hint");
+    if (!state.live) { hint.hidden = true; return; }
+    hint.hidden = false;
+    let t;
+    if (state.backend === "api" && !settings.apiKey.trim()) t = "Add your API key in Settings";
+    else if (state.backend === "api" && settings.auto) t = state.answeredAuto ? "Answered. Point at something new." : "Hold steady on a question";
+    else t = "Frame the text, then tap the shutter";
+    $("hintText").textContent = t;
+  }
+  async function startCamera() {
+    if (!CAN_LIVE) { state.live = false; updateMode(); return; }
+    stopCamera();
+    $("phTitle").textContent = "Starting camera";
+    $("phSub").textContent = "Allow camera access when your phone asks.";
+    $("camRetry").hidden = true;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: state.facing }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      });
+      state.stream = stream;
+      const v = $("video");
+      v.srcObject = stream;
+      await v.play().catch(() => {});
+      state.live = true;
+      state.prevSmall = null;
+      state.steadyMs = 0;
+      updateMode();
+      checkTorch();
+      keepAwake();
+    } catch (e) {
+      state.live = false;
+      updateMode();
+      $("phTitle").textContent = "Camera is off";
+      $("phSub").textContent = e && e.name === "NotAllowedError"
+        ? "Camera access was blocked. Allow it in your browser settings, or tap the shutter to take single photos."
+        : "The live camera didn't start. Tap the shutter to take single photos instead.";
+      $("camRetry").hidden = false;
+    }
+  }
+  function stopCamera() {
+    if (state.stream) state.stream.getTracks().forEach((t) => t.stop());
+    state.stream = null;
+  }
+  function checkTorch() {
+    const t = state.stream && state.stream.getVideoTracks()[0];
+    let caps = null;
+    try { caps = t && t.getCapabilities ? t.getCapabilities() : null; } catch (e) { caps = null; }
+    $("torchBtn").hidden = !(caps && caps.torch);
+    state.torch = false;
+    $("torchBtn").setAttribute("aria-pressed", "false");
+  }
+  async function toggleTorch() {
+    const t = state.stream && state.stream.getVideoTracks()[0];
+    if (!t) return;
+    state.torch = !state.torch;
+    try { await t.applyConstraints({ advanced: [{ torch: state.torch }] }); } catch (e) { state.torch = false; }
+    $("torchBtn").setAttribute("aria-pressed", String(state.torch));
+  }
+  let wake = null;
+  async function keepAwake() {
+    try { if (navigator.wakeLock && !wake) { wake = await navigator.wakeLock.request("screen"); wake.addEventListener("release", () => { wake = null; }); } } catch (e) { wake = null; }
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      if (state.stream) { stopCamera(); state.resume = true; }
+    } else if (state.resume) {
+      state.resume = false;
+      startCamera();
+    }
+  });
+
+  // ---------- hold-steady auto answer (live camera + own API key only) ----------
+  const SW = 80, SH = 60;
+  const small = document.createElement("canvas");
+  small.width = SW; small.height = SH;
+  const sctx = small.getContext("2d", { willReadFrequently: true });
+  function grabSmall() {
+    const v = $("video");
+    if (!v.videoWidth) return null;
+    const vw = v.videoWidth, vh = v.videoHeight;
+    const cw = vw * 0.8, ch = Math.min(vh * 0.6, cw * 0.75);
+    sctx.drawImage(v, (vw - cw) / 2, (vh - ch) / 2, cw, ch, 0, 0, SW, SH);
+    const d = sctx.getImageData(0, 0, SW, SH).data;
+    const g = new Float32Array(SW * SH);
+    for (let i = 0, j = 0; i < g.length; i++, j += 4) g[i] = 0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2];
+    return g;
+  }
+  function meanDiff(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]); return s / a.length; }
+  function edgeDensity(g) {
+    let n = 0, c = 0;
+    for (let y = 0; y < SH - 1; y++) for (let x = 0; x < SW - 1; x++) {
+      const i = y * SW + x;
+      if (Math.abs(g[i + 1] - g[i]) + Math.abs(g[i + SW] - g[i]) > 28) n++;
+      c++;
+    }
+    return n / c;
+  }
+  const TICK = 200;
+  setInterval(() => {
+    const eligible = state.live && state.backend === "api" && settings.auto && settings.apiKey.trim()
+      && !state.busy && !document.hidden && $("settings").hidden;
+    if (!eligible) { if (!state.busy) setRing(0); state.steadyMs = 0; state.prevSmall = null; return; }
+    const g = grabSmall();
+    if (!g) return;
+    const prev = state.prevSmall;
+    state.prevSmall = g;
+    if (!prev) return;
+    const motion = meanDiff(g, prev);
+    state.steadyMs = motion < 5 ? state.steadyMs + TICK : 0;
+    const fresh = !state.lastSig || meanDiff(g, state.lastSig) > 16;
+    if (fresh && state.answeredAuto && motion >= 5) { state.answeredAuto = false; updateHint(); }
+    const speaking = !!(window.speechSynthesis && window.speechSynthesis.speaking);
+    const ready = fresh && !speaking && Date.now() - state.lastFire > 3500 && edgeDensity(g) > 0.04;
+    setRing(ready ? state.steadyMs / 1000 : 0);
+    if (ready && state.steadyMs >= 1000) {
+      state.lastSig = g;
+      state.steadyMs = 0;
+      ask("auto");
+    }
+  }, TICK);
+
+  // ---------- settings panel ----------
+  function seg(container, items, current, onPick) {
+    container.innerHTML = "";
+    items.forEach((it) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(it.id === current));
+      const name = document.createElement("span"); name.textContent = it.name;
+      const sub = document.createElement("small"); sub.textContent = it.sub;
+      b.append(name, sub);
+      b.addEventListener("click", () => {
+        container.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", "false"));
+        b.setAttribute("aria-pressed", "true");
+        onPick(it.id);
+      });
+      container.appendChild(b);
+    });
+  }
+  function fillVoices() {
+    const sel = $("voiceSelect");
+    const cur = pickVoice();
+    sel.innerHTML = "";
+    if (!voices.length) {
+      const o = document.createElement("option"); o.textContent = "Default voice"; o.value = ""; sel.appendChild(o);
+      return;
+    }
+    const en = voices.filter((v) => /^en/i.test(v.lang)), rest = voices.filter((v) => !/^en/i.test(v.lang));
+    [["English", en], ["Other languages", rest]].forEach(([label, list]) => {
+      if (!list.length) return;
+      const og = document.createElement("optgroup"); og.label = label;
+      list.forEach((v) => {
+        const o = document.createElement("option");
+        o.value = v.voiceURI;
+        o.textContent = v.name + " (" + v.lang + ")";
+        if (cur && v.voiceURI === cur.voiceURI) o.selected = true;
+        og.appendChild(o);
+      });
+      sel.appendChild(og);
+    });
+  }
+  function openSettings(needKey) {
+    const api = state.backend === "api";
+    $("keyField").hidden = !api;
+    $("modelField").hidden = !api;
+    $("tierField").hidden = state.backend !== "sample";
+    $("autoField").hidden = !(state.live && api);
+    $("apiKey").value = settings.apiKey;
+    $("autoCheck").checked = settings.auto;
+    $("stepsCheck").checked = settings.speakSteps;
+    $("rate").value = String(settings.rate);
+    $("rateLabel").textContent = "Speed " + Number(settings.rate).toFixed(2) + "x";
+    seg($("modelSeg"), MODELS, settings.model, (id) => { save("model", id); $("modelNote").textContent = MODELS.find((m) => m.id === id).note; });
+    $("modelNote").textContent = (MODELS.find((m) => m.id === settings.model) || MODELS[1]).note;
+    seg($("tierSeg"), TIERS, settings.tier, (id) => save("tier", id));
+    loadVoices();
+    $("settings").hidden = false;
+    if (needKey && api) {
+      toast("Paste your Anthropic API key to start answering.");
+      setTimeout(() => $("apiKey").focus(), 50);
+    }
+  }
+  function closeSettings() {
+    const k = $("apiKey").value.trim();
+    if (k !== settings.apiKey) save("apiKey", k);
+    $("settings").hidden = true;
+    $("apiKey").type = "password";
+    $("keyShow").textContent = "Show";
+    updateMode();
+  }
+
+  // ---------- wiring ----------
+  $("shutter").addEventListener("click", () => {
+    unlockSpeech();
+    if (state.busy) { if (state.ctl) state.ctl.abort(); return; }
+    if (state.live) { state.lastSig = grabSmall(); ask("tap"); return; }
+    if (state.backend === "none") { toast(state.note, "warn", 6000); return; }
+    if (state.backend === "api" && !settings.apiKey.trim()) { openSettings(true); return; }
+    $("snapInput").click();
+  });
+  $("libraryBtn").addEventListener("click", () => {
+    unlockSpeech();
+    if (state.busy) return;
+    if (state.backend === "none") { toast(state.note, "warn", 6000); return; }
+    if (state.backend === "api" && !settings.apiKey.trim()) { openSettings(true); return; }
+    $("pickInput").click();
+  });
+  ["snapInput", "pickInput"].forEach((id) => {
+    $(id).addEventListener("change", (e) => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (f) ask("photo", f);
+    });
+  });
+  $("flipBtn").addEventListener("click", () => {
+    if (!state.live) return;
+    state.facing = state.facing === "environment" ? "user" : "environment";
+    store.set("facing", state.facing);
+    startCamera();
+  });
+  $("camRetry").addEventListener("click", startCamera);
+  $("torchBtn").addEventListener("click", toggleTorch);
+  $("autoChip").addEventListener("click", () => {
+    save("auto", !settings.auto);
+    state.answeredAuto = false;
+    updateMode();
+    toast(settings.auto ? "Auto answer on. Hold steady on a question." : "Auto answer off. Tap the shutter to answer.");
+  });
+  function paintVoice() {
+    $("voiceBtn").setAttribute("aria-pressed", String(settings.voiceOn));
+    $("voiceOnIcon").hidden = !settings.voiceOn;
+    $("voiceOffIcon").hidden = settings.voiceOn;
+  }
+  $("voiceBtn").addEventListener("click", () => {
+    unlockSpeech();
+    save("voiceOn", !settings.voiceOn);
+    paintVoice();
+    if (!settings.voiceOn && window.speechSynthesis) window.speechSynthesis.cancel();
+    toast(settings.voiceOn ? "Answers will be read aloud." : "Voice off. Answers show on screen only.");
+  });
+  $("replayBtn").addEventListener("click", () => { unlockSpeech(); speak(state.current.say || toSpeech(state.current.answer)); });
+  $("copyBtn").addEventListener("click", () => {
+    const c = state.current;
+    const text = c.answer + (c.steps.length ? "\n\n" + c.steps.map((s, i) => (i + 1) + ". " + s).join("\n") : "");
+    try {
+      navigator.clipboard.writeText(text).then(() => toast("Copied."), () => toast("Copy isn't available here. Press and hold the answer to select it."));
+    } catch (e) { toast("Copy isn't available here. Press and hold the answer to select it."); }
+  });
+  $("grip").addEventListener("click", () => {
+    const ex = $("sheet").classList.toggle("expanded");
+    $("grip").setAttribute("aria-expanded", String(ex));
+    $("grip").setAttribute("aria-label", ex ? "Shrink answer" : "Expand answer");
+  });
+  $("settingsBtn").addEventListener("click", () => openSettings(false));
+  $("settingsClose").addEventListener("click", closeSettings);
+  $("settingsDone").addEventListener("click", closeSettings);
+  $("settings").addEventListener("click", (e) => { if (e.target === $("settings")) closeSettings(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("settings").hidden) closeSettings(); });
+  $("keyShow").addEventListener("click", () => {
+    const i = $("apiKey");
+    i.type = i.type === "password" ? "text" : "password";
+    $("keyShow").textContent = i.type === "password" ? "Show" : "Hide";
+  });
+  $("autoCheck").addEventListener("change", (e) => { save("auto", e.target.checked); state.answeredAuto = false; });
+  $("stepsCheck").addEventListener("change", (e) => save("speakSteps", e.target.checked));
+  $("rate").addEventListener("input", (e) => {
+    save("rate", Number(e.target.value));
+    $("rateLabel").textContent = "Speed " + Number(e.target.value).toFixed(2) + "x";
+  });
+  $("voiceSelect").addEventListener("change", (e) => save("voiceURI", e.target.value));
+  $("testVoice").addEventListener("click", () => { unlockSpeech(); speak("This is how your answers will sound."); });
+
+  // ---------- start ----------
+  paintVoice();
+  if (window.speechSynthesis) {
+    loadVoices();
+    try { window.speechSynthesis.addEventListener("voiceschanged", loadVoices); } catch (e) { window.speechSynthesis.onvoiceschanged = loadVoices; }
+  }
+  if (IN_VIEWER) {
+    $("placeholder").hidden = false;
+    window.claude.use("sample").then(async (s) => {
+      if (!s) {
+        state.backend = "none";
+        state.note = "Open Readout inside the Claude app or on claude.ai to get answers.";
+        return;
+      }
+      let lim = null;
+      try { lim = await s.limits(); } catch (e) { lim = null; }
+      if (!lim || !lim.images) {
+        state.backend = "none";
+        state.note = "This view can't send photos to Claude. Open Readout in the Claude app or on claude.ai.";
+        return;
+      }
+      state.sample = s;
+      state.backend = "sample";
+    }).catch(() => { state.backend = "none"; state.note = "Couldn't connect to Claude from this page."; });
+    updateMode();
+  } else {
+    updateMode();
+    startCamera();
+    if (!settings.apiKey.trim()) toast("Open Settings and paste your Anthropic API key to start.", null, 6000);
+  }
+  if (CAN_LIVE && "serviceWorker" in navigator && window.__READOUT_PWA__) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
