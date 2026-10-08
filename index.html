@@ -22,7 +22,7 @@
 </head>
 <body>
 <style>
-/* Layout: full-bleed camera viewfinder; fixed top bar; answer sheet and shutter dock stacked over the lower viewfinder */
+/* Layout: full-bleed camera viewfinder; fixed top bar; answer sheet (answer, player, question, steps, saved) and shutter dock stacked over the lower viewfinder */
 :root {
   --ink: #0D0F12;
   --panel: #15181D;
@@ -41,7 +41,7 @@
 }
 html, body { background: var(--ink); color: var(--text); }
 body { font-family: var(--f-ui); -webkit-font-smoothing: antialiased; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
-button, input, select { font: inherit; color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 
@@ -62,14 +62,14 @@ button { cursor: pointer; }
 .brackets i:nth-child(2) { right: 0; top: 0; border-right-width: 3px; border-top-width: 3px; border-top-right-radius: 6px; }
 .brackets i:nth-child(3) { left: 0; bottom: 0; border-left-width: 3px; border-bottom-width: 3px; border-bottom-left-radius: 6px; }
 .brackets i:nth-child(4) { right: 0; bottom: 0; border-right-width: 3px; border-bottom-width: 3px; border-bottom-right-radius: 6px; }
-.brackets.dim { opacity: 0; }
+.brackets.locked i { border-color: var(--muted); }
 .brackets.thinking { animation: pulse 1.1s ease-in-out infinite; }
 .brackets.flash { animation: flash .35s ease-out; }
 @keyframes pulse { 50% { opacity: .35; transform: translate(-50%, -50%) scale(.97); } }
 @keyframes flash { 0% { transform: translate(-50%, -50%) scale(1.06); } 100% { transform: translate(-50%, -50%) scale(1); } }
 
 .hint { position: absolute; left: 16px; right: 16px; top: calc(31% - min(29vw, 158px) - 34px); text-align: center; pointer-events: none; }
-.hint span { display: inline-block; padding: 5px 12px; border-radius: 999px; background: var(--scrim); color: var(--text); font-size: 13px; font-weight: 500; letter-spacing: .01em; }
+.hint span { display: inline-block; max-width: 100%; padding: 5px 12px; border-radius: 999px; background: var(--scrim); color: var(--text); font-size: 13px; font-weight: 500; letter-spacing: .01em; }
 
 /* Top bar */
 .bar { position: absolute; top: 0; left: 0; right: 0; padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: linear-gradient(to bottom, var(--scrim), transparent); z-index: 3; }
@@ -77,12 +77,11 @@ button { cursor: pointer; }
 .mark svg { width: 18px; height: 18px; color: var(--amber); }
 .bar-actions { display: flex; align-items: center; gap: 8px; }
 .chip { border: 1px solid var(--line); background: var(--scrim); border-radius: 999px; padding: 5px 11px; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.chip.live { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 45%, transparent); }
 button.chip[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
 .icon-btn { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: var(--scrim); color: var(--text); padding: 0; }
 .icon-btn svg { width: 19px; height: 19px; }
-.icon-btn[aria-pressed="false"] { color: var(--muted); }
 .icon-btn[aria-pressed="true"].torch { color: var(--amber); border-color: var(--amber); }
+.icon-btn.muted { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, transparent); }
 .icon-btn.lg { width: 50px; height: 50px; }
 .icon-btn.lg svg { width: 22px; height: 22px; }
 
@@ -92,8 +91,8 @@ button.chip[aria-pressed="true"] { background: var(--amber); color: var(--amber-
 .toast { align-self: center; max-width: 100%; padding: 8px 14px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line); font-size: 13.5px; line-height: 1.35; text-align: center; }
 .toast.warn { border-color: color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger); }
 
-.sheet { position: relative; max-height: 42%; max-height: 42dvh; overflow-y: auto; overscroll-behavior: contain; background: color-mix(in srgb, var(--panel) 94%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--line); border-radius: 18px; padding: 8px 16px 14px; display: grid; gap: 10px; transition: max-height .25s ease; }
-.sheet.expanded { max-height: 74%; max-height: 74dvh; }
+.sheet { position: relative; max-height: 46%; max-height: 46dvh; overflow-y: auto; overscroll-behavior: contain; background: color-mix(in srgb, var(--panel) 94%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--line); border-radius: 18px; padding: 8px 16px 14px; display: grid; gap: 10px; transition: max-height .25s ease; }
+.sheet.expanded { max-height: 76%; max-height: 76dvh; }
 .grip { justify-self: center; width: 46px; height: 14px; border: 0; background: transparent; padding: 0; position: relative; }
 .grip::after { content: ""; position: absolute; left: 7px; right: 7px; top: 5px; height: 4px; border-radius: 4px; background: var(--line); }
 .meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -103,7 +102,7 @@ button.chip[aria-pressed="true"] { background: var(--amber); color: var(--amber-
 .tag.is-error { color: var(--danger); }
 .read { display: grid; gap: 4px; min-width: 0; }
 .label { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-.read p { margin: 0; font-family: var(--f-mono); font-size: 13px; line-height: 1.5; color: color-mix(in srgb, var(--text) 82%, var(--muted)); white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.read p { margin: 0; font-family: var(--f-mono); font-size: 12.5px; line-height: 1.5; color: color-mix(in srgb, var(--text) 82%, var(--muted)); white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .sheet.expanded .read p { -webkit-line-clamp: unset; display: block; }
 .answer { font-family: var(--f-answer); font-size: 21px; line-height: 1.38; font-weight: 500; white-space: pre-line; overflow-wrap: anywhere; min-width: 0; overflow-x: auto; }
 .answer.streaming { color: color-mix(in srgb, var(--text) 70%, var(--muted)); }
@@ -112,9 +111,23 @@ button.chip[aria-pressed="true"] { background: var(--amber); color: var(--amber-
 .working-line { display: flex; align-items: center; gap: 10px; color: var(--muted); font-family: var(--f-ui); font-size: 15px; font-weight: 500; }
 .working-line::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--amber); border-right-color: transparent; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Player */
+.player { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; min-width: 0; }
+.player-status { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+.now { margin: 0; font-family: var(--f-answer); font-size: 17px; line-height: 1.4; color: var(--text); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.transport { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.transport .grow { flex: 1; min-width: 0; }
+.tbtn { width: 42px; height: 42px; flex: none; border-radius: 50%; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); display: grid; place-items: center; padding: 0; }
+.tbtn svg { width: 18px; height: 18px; }
+.tbtn.main { width: 50px; height: 50px; background: var(--amber); border-color: var(--amber); color: var(--amber-ink); }
+.tbtn.main svg { width: 21px; height: 21px; }
+.tbtn:disabled { opacity: .35; cursor: default; }
+.speed { flex: none; height: 34px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel-2); font-family: var(--f-mono); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
 .pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--panel-2); border-radius: 999px; padding: 7px 13px; font-size: 13px; font-weight: 600; }
 .pill svg { width: 15px; height: 15px; }
+.pill.danger { color: var(--danger); }
 details { border-top: 1px solid var(--line); padding-top: 8px; }
 summary { cursor: pointer; font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); list-style: none; display: flex; align-items: center; gap: 6px; }
 summary::-webkit-details-marker { display: none; }
@@ -124,7 +137,9 @@ details[open] > summary::before { content: "\2212"; }
 .steps li::marker { color: var(--amber); font-family: var(--f-mono); font-size: 13px; }
 .history ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
 .history button { width: 100%; text-align: left; display: grid; gap: 2px; border: 1px solid var(--line); background: var(--panel-2); border-radius: 12px; padding: 8px 12px; min-width: 0; }
-.history .h-read { font-family: var(--f-mono); font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history .h-top { display: flex; justify-content: space-between; gap: 10px; min-width: 0; }
+.history .h-read { font-family: var(--f-mono); font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.history .h-time { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
 .history .h-ans { font-family: var(--f-answer); font-size: 15px; overflow-wrap: anywhere; }
 
 /* Dock */
@@ -143,16 +158,20 @@ details[open] > summary::before { content: "\2212"; }
 
 /* Settings */
 .settings { position: absolute; inset: 0; z-index: 10; background: rgba(5, 6, 8, .6); display: flex; align-items: flex-end; justify-content: center; }
-.settings-panel { width: 100%; max-width: 560px; max-height: 88%; max-height: 88dvh; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-bottom: 0; border-radius: 20px 20px 0 0; padding: 18px 16px calc(env(safe-area-inset-bottom, 0px) + 18px); display: grid; gap: 18px; }
+.settings-panel { width: 100%; max-width: 560px; max-height: 90%; max-height: 90dvh; overflow-y: auto; overscroll-behavior: contain; background: var(--panel); border: 1px solid var(--line); border-bottom: 0; border-radius: 20px 20px 0 0; padding: 18px 16px calc(env(safe-area-inset-bottom, 0px) + 18px); display: grid; gap: 18px; }
 .settings-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .settings-head h2 { margin: 0; font-size: 20px; font-weight: 700; font-stretch: 85%; letter-spacing: .01em; }
-.field { display: grid; gap: 7px; min-width: 0; }
-.field > label:not(.check), .field > .label { font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.sec { margin: 4px 0 -8px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 12.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--amber); }
+.field { display: grid; gap: 8px; min-width: 0; }
+.field > label:not(.check), .field > .label, .range-head label { font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.range-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.range-head output { font-family: var(--f-mono); font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; }
 .field p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
 .field p a { color: var(--amber); }
 .input { width: 100%; box-sizing: border-box; min-width: 0; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; font-size: 15px; }
 .input.mono { font-family: var(--f-mono); font-size: 13.5px; }
-.row { display: flex; gap: 8px; align-items: center; }
+textarea.input { min-height: 78px; resize: vertical; line-height: 1.4; font-size: 15px; }
+.row { display: flex; gap: 8px; align-items: center; min-width: 0; }
 .row .input { flex: 1; }
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line); }
 .seg button { border: 0; background: transparent; border-radius: 9px; padding: 9px 6px; font-size: 14px; font-weight: 600; color: var(--muted); display: grid; gap: 1px; }
@@ -189,11 +208,10 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     </div>
     <div class="bar-actions">
       <button class="chip" id="autoChip" type="button" aria-pressed="true" hidden>Auto</button>
-      <span class="chip" id="modeChip">Photo</span>
       <button class="icon-btn torch" id="torchBtn" type="button" aria-label="Flashlight" aria-pressed="false" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2h8v4l-2 4v11a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V10L8 6z"/><path d="M12 13v2"/></svg>
       </button>
-      <button class="icon-btn" id="voiceBtn" type="button" aria-label="Voice answers" aria-pressed="true">
+      <button class="icon-btn" id="muteBtn" type="button" aria-label="Mute" aria-pressed="false">
         <svg id="voiceOnIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>
         <svg id="voiceOffIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 6 6M22 9l-6 6"/></svg>
       </button>
@@ -206,15 +224,37 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   <div class="bottom">
     <div class="toast" id="toast" role="status" hidden></div>
 
-    <section class="sheet" id="sheet" aria-live="polite" aria-label="Answer">
+    <section class="sheet" id="sheet" aria-label="Answer">
       <button class="grip" id="grip" type="button" aria-label="Expand answer" aria-expanded="false"></button>
-      <div class="meta"><span class="tag" id="tag">Example</span><span id="metaText">This is what an answer looks like</span></div>
-      <div class="read" id="readBox"><span class="label">Read</span><p id="readText">Find dy/dx if y = x² sin x.</p></div>
-      <div class="answer" id="answerText">\(\dfrac{dy}{dx} = 2x\sin x + x^2\cos x\)</div>
-      <div class="actions" id="actions">
-        <button class="pill" id="replayBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>Hear it</button>
-        <button class="pill" id="copyBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy</button>
+      <div class="meta"><span class="tag" id="tag">Example</span><span id="metaText">Tap play to hear how answers sound</span></div>
+      <div class="answer" id="answerText" aria-live="polite">\(\dfrac{dy}{dx} = 2x\sin x + x^2\cos x\)</div>
+
+      <div class="player" id="player">
+        <div class="player-status" id="playStatus">Tap play to hear it</div>
+        <p class="now" id="nowLine" hidden></p>
+        <div class="transport">
+          <button class="tbtn" id="backBtn" type="button" aria-label="Replay line" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8.5"/><path d="M3.5 3.5v5h5"/></svg>
+          </button>
+          <button class="tbtn main" id="playBtn" type="button" aria-label="Play answer">
+            <svg id="playIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.2v13.6a.8.8 0 0 0 1.2.7l10.6-6.8a.8.8 0 0 0 0-1.4L9.2 4.5A.8.8 0 0 0 8 5.2z" fill="currentColor"/></svg>
+            <svg id="pauseIcon" viewBox="0 0 24 24" aria-hidden="true" hidden><rect x="6" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1.2" fill="currentColor"/></svg>
+          </button>
+          <button class="tbtn" id="nextBtn" type="button" aria-label="Skip to next line" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6.1v11.8a.8.8 0 0 0 1.2.7l8.6-5.9a.8.8 0 0 0 0-1.4L6.2 5.4A.8.8 0 0 0 5 6.1z" fill="currentColor"/><rect x="16.5" y="5.5" width="2.6" height="13" rx="1" fill="currentColor"/></svg>
+          </button>
+          <button class="tbtn" id="stopBtn" type="button" aria-label="Stop reading" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor"/></svg>
+          </button>
+          <span class="grow"></span>
+          <button class="speed" id="speedBtn" type="button" aria-label="Reading speed">0.8×</button>
+          <button class="tbtn" id="copyBtn" type="button" aria-label="Copy answer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+          </button>
+        </div>
       </div>
+
+      <div class="read" id="readBox"><span class="label">Question</span><p id="readText">Find dy/dx if y = x² sin x.</p></div>
       <details class="steps" id="stepsBox">
         <summary id="stepsSummary">Steps (3)</summary>
         <ol id="stepsList">
@@ -224,7 +264,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
         </ol>
       </details>
       <details class="history" id="historyBox" hidden>
-        <summary id="historySummary">Earlier</summary>
+        <summary id="historySummary">Saved</summary>
         <ul id="historyList"></ul>
       </details>
     </section>
@@ -247,7 +287,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   <input type="file" id="pickInput" accept="image/*" hidden>
 
   <div class="settings" id="settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
-    <div class="settings-panel">
+    <div class="settings-panel" id="settingsPanel">
       <div class="settings-head">
         <h2 id="settingsTitle">Settings</h2>
         <button class="icon-btn" id="settingsClose" type="button" aria-label="Close settings">
@@ -264,31 +304,68 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
         <p>Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. It stays on this phone and is sent only to Anthropic.</p>
       </div>
 
+      <h3 class="sec">Voice</h3>
+      <div class="field">
+        <label for="voiceSelect">Voice</label>
+        <div class="row">
+          <select class="input" id="voiceSelect"></select>
+          <button class="pill" id="testVoice" type="button">Test</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="range-head"><label for="rate">Speed</label><output id="rateOut" for="rate">0.80×</output></div>
+        <input type="range" id="rate" min="0.5" max="1.3" step="0.05" value="0.8">
+      </div>
+      <div class="field">
+        <div class="range-head"><label for="volume">Volume</label><output id="volumeOut" for="volume">100%</output></div>
+        <input type="range" id="volume" min="0" max="1" step="0.05" value="1">
+        <p>Works on top of your phone's volume buttons.</p>
+      </div>
+
+      <h3 class="sec">Reading</h3>
+      <div class="field">
+        <span class="label">Repeat each answer</span>
+        <div class="seg" id="repeatSeg"></div>
+      </div>
+      <div class="field">
+        <span class="label">Pause between lines</span>
+        <div class="seg" id="pauseSeg"></div>
+      </div>
+      <div class="field">
+        <label class="check"><input type="checkbox" id="stepsCheck"><span>Read the steps aloud too<small>Reads the worked steps after the answer, one line at a time.</small></span></label>
+        <label class="check"><input type="checkbox" id="againCheck"><span>Say "again" before each repeat</span></label>
+        <label class="check"><input type="checkbox" id="cuesCheck"><span>Sound cues<small>A tick when it scans and a chime when it's done reading.</small></span></label>
+      </div>
+
+      <h3 class="sec" id="autoSec" hidden>Auto answer</h3>
+      <div class="field" id="autoField" hidden>
+        <label class="check"><input type="checkbox" id="autoCheck"><span>Answer automatically<small>Move to a new question and hold still. Readout answers on its own, once per question.</small></span></label>
+        <label class="check"><input type="checkbox" id="waitCheck"><span>Wait until reading is done<small>If you turn the page mid-answer, it finishes reading first, then scans the new page.</small></span></label>
+        <span class="label">Hold time</span>
+        <div class="seg" id="holdSeg"></div>
+      </div>
+
+      <h3 class="sec">Answers</h3>
       <div class="field" id="modelField" hidden>
         <span class="label">Model</span>
         <div class="seg" id="modelSeg"></div>
         <p id="modelNote"></p>
       </div>
-
       <div class="field" id="tierField" hidden>
         <span class="label">Thinking</span>
         <div class="seg" id="tierSeg"></div>
         <p>Answers run on your Claude plan. The first one asks your permission.</p>
       </div>
-
-      <div class="field" id="autoField" hidden>
-        <label class="check"><input type="checkbox" id="autoCheck"><span>Answer automatically<small>Move to a new question and hold still. Readout answers on its own, once per question.</small></span></label>
-        <span class="label">Hold time</span>
-        <div class="seg" id="holdSeg"></div>
+      <div class="field">
+        <label for="extra">Extra instructions</label>
+        <textarea class="input" id="extra" maxlength="600" placeholder="Use radians. Round to 3 decimal places. Leave answers as fractions."></textarea>
+        <p>Applied to every answer.</p>
       </div>
 
+      <h3 class="sec">Saved answers</h3>
       <div class="field">
-        <label for="voiceSelect">Voice</label>
-        <select class="input" id="voiceSelect"></select>
-        <label for="rate" id="rateLabel">Speed 1.05x</label>
-        <input type="range" id="rate" min="0.7" max="1.6" step="0.05" value="1.05">
-        <label class="check"><input type="checkbox" id="stepsCheck"><span>Read the steps aloud too<small>Off reads only the answer.</small></span></label>
-        <button class="pill" id="testVoice" type="button" style="justify-self:start">Test voice</button>
+        <label class="check"><input type="checkbox" id="keepCheck"><span>Save answers on this phone<small>Your last 25 answers, so you can replay them later.</small></span></label>
+        <button class="pill danger" id="clearBtn" type="button" style="justify-self:start">Clear saved answers</button>
       </div>
 
       <button class="done-btn" id="settingsDone" type="button">Done</button>
@@ -315,24 +392,29 @@ window.MathJax = {
 (() => {
   "use strict";
   const $ = (id) => document.getElementById(id);
+  const vis = (id, on) => { $(id).toggleAttribute("hidden", !on); };
 
   // ---------- settings (per device) ----------
   const store = {
     get(k, d) { try { const v = localStorage.getItem("readout." + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem("readout." + k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } }
   };
-  const settings = {
-    apiKey: store.get("apiKey", ""),
-    model: store.get("model", "claude-sonnet-5-5"),
-    tier: store.get("tier", "default"),
-    voiceOn: store.get("voiceOn", true),
-    voiceURI: store.get("voiceURI", ""),
-    rate: store.get("rate", 1.05),
-    speakSteps: store.get("speakSteps", false),
-    auto: store.get("auto", true),
-    holdMs: store.get("holdMs", 900)
+  const DEF = {
+    apiKey: "", model: "claude-sonnet-5-5", tier: "default",
+    voiceOn: true, voiceURI: "", rate: 0.8, volume: 1,
+    repeats: 2, pauseMs: 1200, readSteps: false, sayAgain: true, cues: true,
+    auto: true, holdMs: 900, waitForVoice: true,
+    extra: "", keepHistory: true
   };
+  const settings = {};
+  Object.keys(DEF).forEach((k) => { settings[k] = store.get(k, DEF[k]); });
   const save = (k, v) => { settings[k] = v; store.set(k, v); };
+  if (store.get("v", 1) < 2) {
+    save("rate", DEF.rate);
+    const old = store.get("speakSteps", null);
+    if (old !== null) save("readSteps", !!old);
+    store.set("v", 2);
+  }
 
   const MODELS = [
     { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5", sub: "Fastest", note: "Fastest replies. Roughly a third of a cent per answer." },
@@ -344,9 +426,26 @@ window.MathJax = {
     { id: "default", name: "Balanced", sub: "Thinks first" },
     { id: "complex", name: "Deep", sub: "Hard problems" }
   ];
+  const HOLDS = [
+    { id: 600, name: "Quick", sub: "0.6 s" },
+    { id: 900, name: "Normal", sub: "0.9 s" },
+    { id: 1400, name: "Patient", sub: "1.4 s" }
+  ];
+  const REPEATS = [
+    { id: 1, name: "Once", sub: "1×" },
+    { id: 2, name: "Twice", sub: "2×" },
+    { id: 3, name: "3 times", sub: "3×" }
+  ];
+  const PAUSES = [
+    { id: 500, name: "Short", sub: "0.5 s" },
+    { id: 1200, name: "Medium", sub: "1.2 s" },
+    { id: 2500, name: "Long", sub: "2.5 s" }
+  ];
+  const SPEEDS = [0.6, 0.7, 0.8, 0.9, 1, 1.1];
 
-  const PROMPT = [
+  const BASE_PROMPT = [
     "You are Readout, a phone camera assistant. The image is a photo someone just took of something with text in it: a worksheet, a textbook, a screen, a whiteboard, a sign, a menu, a label.",
+    "The person usually listens to your answer and writes it down by hand as it is read aloud, so the spoken parts must be easy to copy.",
     "",
     "1. Read the text that is the focus of the photo. Ignore background clutter and text cut off at the edges unless it matters.",
     "2. Respond to it:",
@@ -357,16 +456,32 @@ window.MathJax = {
     "- Several questions: answer each one on its own line, numbered.",
     "3. Be correct first, then brief. Check your arithmetic.",
     "",
-    "Reply in exactly this format, with these four labels at the start of their lines and nothing before READ:",
+    "Reply in exactly this format, with these five labels at the start of their lines and nothing before READ:",
     "READ: the text you read, trimmed to what matters, at most 400 characters. Write NONE if there is no readable text.",
     "ANSWER: the answer, short and direct. Use \\( \\) for inline math and \\[ \\] for displayed math. Write a money dollar sign as \\$.",
-    "SAY: the answer as it should be read aloud: plain spoken words, no symbols or LaTeX, at most 50 words.",
-    "STEPS: only if the problem needs work, up to 6 short lines, each starting with \"- \", math allowed. Otherwise write NONE."
-  ].join("\n");
+    "SAY: the answer as it should be read aloud for someone writing it down: plain spoken words, no symbols or LaTeX, at most 60 words, short sentences. Say math the way a teacher dictates it, for example \"x equals negative 3 over 4\", \"2 x squared plus 5 x\", \"the square root of 2, all over 2\". If the problem has a visible number or letter, start with it, like \"Number 4.\" For several answers, use one sentence each.",
+    "STEPS: only if the problem needs work, up to 6 short lines, each starting with \"- \", math allowed. Otherwise write NONE.",
+    "SAYSTEPS: the same steps as plain spoken words for dictation, one line each, each starting with \"- \". Write NONE if STEPS is NONE."
+  ];
+  function buildPrompt() {
+    const extra = String(settings.extra || "").trim().slice(0, 600);
+    const lines = BASE_PROMPT.slice();
+    if (extra) lines.push("", "Standing preferences from the person. Follow them unless they break the reply format:", extra);
+    return lines.join("\n");
+  }
 
   // ---------- environment ----------
   const IN_VIEWER = !!(window.claude && typeof window.claude.use === "function");
   const CAN_LIVE = !IN_VIEWER && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+  const EXAMPLE = {
+    read: "Find dy/dx if y = x² sin x.",
+    answer: "\\(\\dfrac{dy}{dx} = 2x\\sin x + x^2\\cos x\\)",
+    say: "d y d x equals 2 x sine x, plus x squared cosine x.",
+    steps: ["Product rule: \\((uv)' = u'v + uv'\\)", "\\(u = x^2,\\ u' = 2x\\) and \\(v = \\sin x,\\ v' = \\cos x\\)", "\\(y' = 2x\\sin x + x^2\\cos x\\)"],
+    saySteps: ["Use the product rule.", "u is x squared, so u prime is 2 x. v is sine x, so v prime is cosine x.", "y prime equals 2 x sine x, plus x squared cosine x."],
+    ts: 0
+  };
 
   const state = {
     backend: IN_VIEWER ? "pending" : "api", // pending | sample | api | none
@@ -377,9 +492,10 @@ window.MathJax = {
     facing: store.get("facing", "environment"),
     busy: false,
     ctl: null,
-    history: [],
-    current: { read: "Find dy/dx if y = x² sin x.", answer: "\\(\\dfrac{dy}{dx} = 2x\\sin x + x^2\\cos x\\)", say: "d y d x equals two x sine x, plus x squared cosine x.", steps: [] },
-    isExample: true,
+    run: 0,
+    history: settings.keepHistory ? (store.get("history", []) || []).filter((h) => h && h.answer).slice(0, 25) : [],
+    current: EXAMPLE,
+    playerReady: true,
     lastFire: 0,
     torch: false,
     unlocked: false,
@@ -413,40 +529,66 @@ window.MathJax = {
   pendingMath.add($("answerText"));
   pendingMath.add($("stepsList"));
 
-  // ---------- speech ----------
+  // ---------- voices ----------
   let voices = [];
+  const LOW_QUALITY = /eddy|flo\b|grandma|grandpa|reed|rocko|sandy|shelley|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|albert|fred|junior|ralph|kathy|compact/i;
+  function voiceScore(v) {
+    let s = 0;
+    if (/premium/i.test(v.name)) s += 5;
+    if (/enhanced|natural|neural/i.test(v.name)) s += 4;
+    if (/^en[-_]US/i.test(v.lang)) s += 2; else if (/^en/i.test(v.lang)) s += 1;
+    if (/samantha|ava|zoe|evan|nathan|allison|susan|tom|google us english|aria|jenny|guy/i.test(v.name)) s += 1;
+    if (LOW_QUALITY.test(v.name)) s -= 4;
+    return s;
+  }
   function loadVoices() {
     try { voices = (window.speechSynthesis && window.speechSynthesis.getVoices()) || []; } catch (e) { voices = []; }
-    fillVoices();
+    if (!$("settings").hidden) fillVoices();
   }
   function pickVoice() {
-    return voices.find((v) => v.voiceURI === settings.voiceURI)
-      || voices.find((v) => /^en[-_]US/i.test(v.lang) && /samantha|ava|google us|aria|jenny|natural|premium|enhanced/i.test(v.name))
-      || voices.find((v) => /^en/i.test(v.lang) && v.default)
-      || voices.find((v) => /^en[-_]US/i.test(v.lang))
-      || voices.find((v) => /^en/i.test(v.lang))
-      || null;
+    const chosen = voices.find((v) => v.voiceURI === settings.voiceURI);
+    if (chosen) return chosen;
+    const en = voices.filter((v) => /^en/i.test(v.lang));
+    if (!en.length) return null;
+    return en.slice().sort((a, b) => voiceScore(b) - voiceScore(a))[0];
   }
-  function speak(text) {
-    const ss = window.speechSynthesis;
-    if (!ss || !text) return;
-    try {
-      ss.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      const v = pickVoice();
-      if (v) { u.voice = v; u.lang = v.lang; }
-      u.rate = settings.rate;
-      ss.speak(u);
-      if (!state.unlocked) toast("Tap Hear it if you don't hear anything. Phones only allow sound after a tap.", null, 4500);
-    } catch (e) { /* speech unavailable */ }
-  }
-  function unlockSpeech() {
-    const ss = window.speechSynthesis;
-    if (!ss || state.unlocked) return;
-    try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; ss.speak(u); state.unlocked = true; } catch (e) { /* ignore */ }
-  }
-  document.addEventListener("pointerdown", unlockSpeech, { once: true, capture: true });
 
+  // ---------- sound cues ----------
+  let actx = null;
+  function audioCtx() {
+    if (!actx) { const C = window.AudioContext || window.webkitAudioContext; if (C) { try { actx = new C(); } catch (e) { actx = null; } } }
+    return actx;
+  }
+  function cue(kind) {
+    if (!settings.cues || !settings.voiceOn) return;
+    const ctx = audioCtx();
+    if (!ctx || ctx.state !== "running") return;
+    const t0 = ctx.currentTime + 0.01;
+    const notes = kind === "capture" ? [[1046, 0, 0.06]] : [[659, 0, 0.14], [988, 0.14, 0.22]];
+    const peak = 0.22 * Math.max(0.05, settings.volume);
+    notes.forEach(([f, at, d]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0 + at);
+      g.gain.exponentialRampToValueAtTime(peak, t0 + at + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + d);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(t0 + at); o.stop(t0 + at + d + 0.05);
+    });
+  }
+  function unlock() {
+    const s = window.speechSynthesis;
+    if (s && !state.unlocked) {
+      try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; s.speak(u); } catch (e) { /* ignore */ }
+      state.unlocked = true;
+    }
+    const c = audioCtx();
+    if (c && c.state !== "running") { try { c.resume(); } catch (e) { /* ignore */ } }
+  }
+  document.addEventListener("pointerdown", unlock, { capture: true });
+
+  // ---------- text to speech helpers ----------
   function toSpeech(s) {
     return String(s || "")
       .replace(/\\\$\s?(\d[\d,.]*)/g, " $1 dollars ").replace(/\\\$/g, " dollars ")
@@ -460,22 +602,204 @@ window.MathJax = {
       .replace(/\\[a-zA-Z]+/g, " ").replace(/[{}_\\]/g, " ")
       .replace(/\s=\s|=/g, " equals ").replace(/\s+/g, " ").trim();
   }
+  function sentences(s) {
+    const parts = String(s || "").replace(/\s+/g, " ").trim().split(/([.!?;:])\s+(?=\S)/);
+    const out = [];
+    for (let i = 0; i < parts.length; i += 2) {
+      const t = (parts[i] + (parts[i + 1] || "")).trim();
+      if (!t) continue;
+      if (out.length && t.split(" ").length < 2 && !/^number\b/i.test(out[out.length - 1])) out[out.length - 1] += " " + t;
+      else out.push(t);
+    }
+    return out;
+  }
+  function speechItems(e, withSteps, final) {
+    const items = sentences(e.say || toSpeech(e.answer));
+    if (withSteps) {
+      let ss = e.saySteps && e.saySteps.length ? e.saySteps : [];
+      if (!ss.length && final && e.steps && e.steps.length) ss = e.steps.map(toSpeech);
+      if (ss.length) items.push("Steps.", ...ss);
+    }
+    return items;
+  }
+
+  // ---------- reader: line by line, with pauses, repeats and a transport ----------
+  const reader = { items: [], final: true, idx: 0, cur: 0, pass: 1, passes: 1, state: "idle", id: 0, timer: 0, guard: 0, u: null, now: "", owner: null, lineStart: 0, endedAt: 0, again: false };
+  function rActive() { return reader.state !== "idle"; }
+  function rHalt() {
+    reader.id++;
+    clearTimeout(reader.timer);
+    clearTimeout(reader.guard);
+    const s = window.speechSynthesis;
+    if (s) { try { s.cancel(); } catch (e) { /* ignore */ } }
+  }
+  function rStart(items, final, passes, owner) {
+    rHalt();
+    reader.items = items.slice();
+    reader.final = final;
+    reader.idx = 0; reader.cur = 0; reader.pass = 1;
+    reader.passes = Math.max(1, passes | 0);
+    reader.owner = owner; reader.now = ""; reader.again = false;
+    reader.state = "waiting";
+    rGo();
+  }
+  function rUpdate(items, final) {
+    reader.items = items.slice();
+    reader.final = final;
+    if (reader.state === "waiting") rGo(); else paintPlayer();
+  }
+  function rGo() {
+    if (reader.state === "paused" || reader.state === "idle") return;
+    if (reader.idx >= reader.items.length) {
+      if (!reader.final) { reader.state = "waiting"; paintPlayer(); return; }
+      if (reader.pass < reader.passes && reader.items.length) {
+        reader.pass++;
+        reader.idx = 0;
+        reader.cur = -1;
+        if (settings.sayAgain) {
+          reader.again = true;
+          speakLine("Again.", () => { reader.again = false; gap(rGo, Math.min(settings.pauseMs, 900)); });
+        } else {
+          gap(rGo, settings.pauseMs);
+        }
+        return;
+      }
+      rFinish(false);
+      return;
+    }
+    reader.cur = reader.idx;
+    speakLine(reader.items[reader.idx], () => { reader.idx = reader.cur + 1; gap(rGo, settings.pauseMs); });
+  }
+  function gap(fn, ms) {
+    const my = ++reader.id;
+    reader.state = "gap";
+    paintPlayer();
+    reader.timer = setTimeout(() => { if (my === reader.id) { reader.state = "waiting"; fn(); } }, ms);
+  }
+  function speakLine(text, after) {
+    const s = window.speechSynthesis;
+    const my = ++reader.id;
+    reader.state = "speaking";
+    reader.now = text;
+    reader.lineStart = Date.now();
+    paintPlayer();
+    let done = false, started = false;
+    const finish = () => { if (done || my !== reader.id) return; done = true; clearTimeout(reader.guard); after(); };
+    if (!s) { reader.timer = setTimeout(finish, 600); return; }
+    let u;
+    try { u = new SpeechSynthesisUtterance(text); } catch (e) { reader.timer = setTimeout(finish, 600); return; }
+    const v = pickVoice();
+    try { if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = "en-US"; } } catch (e) { /* voice not settable */ }
+    u.rate = settings.rate;
+    u.volume = settings.volume;
+    u.onstart = () => { started = true; };
+    u.onend = finish;
+    u.onerror = finish;
+    reader.u = u;
+    try { if (s.paused) s.resume(); s.speak(u); } catch (e) { reader.timer = setTimeout(finish, 600); return; }
+    const words = text.split(/\s+/).length;
+    const est = 1200 + (words * 520) / Math.max(0.4, settings.rate);
+    reader.guard = setTimeout(finish, est * 2 + 3000);
+    setTimeout(() => {
+      if (my !== reader.id || started || done) return;
+      if (!state.unlocked) {
+        rFinish(true);
+        toast("Tap play to hear the answer. Your phone needs one tap before it can talk.", null, 5000);
+      }
+    }, 2500);
+  }
+  function rFinish(silent) {
+    rHalt();
+    reader.state = "idle";
+    reader.now = "";
+    reader.again = false;
+    reader.owner = null;
+    reader.endedAt = Date.now();
+    paintPlayer();
+    if (!silent) cue("done");
+    updateHint();
+  }
+  function rStop() { if (rActive()) rFinish(true); }
+  function rPause() {
+    if (!rActive() || reader.state === "paused") return;
+    rHalt();
+    if (reader.again) { reader.again = false; reader.idx = 0; }
+    reader.state = "paused";
+    paintPlayer();
+  }
+  function rResume() {
+    if (reader.state !== "paused") return;
+    reader.state = "waiting";
+    rGo();
+  }
+  function rBack() {
+    if (!rActive()) return;
+    const justStarted = reader.state === "speaking" && Date.now() - reader.lineStart < 1500;
+    const target = reader.again ? 0 : Math.max(0, justStarted ? reader.cur - 1 : reader.cur);
+    rHalt();
+    reader.again = false;
+    reader.idx = target;
+    reader.state = "waiting";
+    rGo();
+  }
+  function rNext() {
+    if (!rActive()) return;
+    const target = reader.again ? 0 : reader.cur + 1;
+    rHalt();
+    reader.again = false;
+    reader.idx = target;
+    reader.state = "waiting";
+    rGo();
+  }
+  function playCurrent(passes) {
+    const c = state.current;
+    if (!c || !(c.say || c.answer)) return;
+    rStart(speechItems(c, settings.readSteps, true), true, passes, "manual");
+  }
+
+  function fmtRate(r) { return Number(r).toFixed(2).replace(/0$/, "") + "×"; }
+  function paintPlayer() {
+    const st = reader.state, active = st !== "idle";
+    const c = state.current;
+    const show = active || (state.playerReady && !!(c && (c.say || c.answer)));
+    $("player").hidden = !show;
+    $("speedBtn").textContent = fmtRate(settings.rate);
+    if (!show) return;
+    const playing = active && st !== "paused";
+    vis("playIcon", !playing);
+    vis("pauseIcon", playing);
+    $("playBtn").setAttribute("aria-label", playing ? "Pause" : st === "paused" ? "Resume" : "Play answer");
+    ["backBtn", "nextBtn", "stopBtn"].forEach((id) => { $(id).disabled = !active; });
+    let status;
+    if (!active) {
+      status = settings.voiceOn ? "Tap play to hear it" : "Voice is muted. Tap play to hear it anyway.";
+    } else {
+      const n = reader.items.length;
+      const line = reader.again ? "Repeating" : "Line " + Math.min(Math.max(reader.cur, 0) + 1, Math.max(n, 1)) + " of " + n + (reader.final ? "" : "+");
+      status = (st === "paused" ? "Paused · " : "") + (reader.passes > 1 ? "Pass " + reader.pass + " of " + reader.passes + " · " : "") + line;
+    }
+    $("playStatus").textContent = status;
+    $("nowLine").hidden = !active || !reader.now;
+    $("nowLine").textContent = active ? reader.now : "";
+    $("brackets").classList.toggle("locked", active && settings.waitForVoice && state.live && settings.auto);
+  }
 
   // ---------- reply parsing ----------
-  const ORDER = ["READ", "ANSWER", "SAY", "STEPS"];
+  const ORDER = ["READ", "ANSWER", "SAY", "STEPS", "SAYSTEPS"];
   function parseReply(t, done) {
-    const re = /^[ \t>*#]*\**(READ|ANSWER|SAY|STEPS)\**[ \t]*:\**[ \t]*/gim;
+    const re = /^[ \t>*#]*\**(READ|ANSWER|SAY[ _-]?STEPS|SAY|STEPS)\**[ \t]*:\**[ \t]*/gim;
     const marks = [];
     let m, at = -1;
     while ((m = re.exec(t))) {
-      const k = m[1].toUpperCase();
+      const k = m[1].toUpperCase().replace(/[ _-]/g, "");
       const idx = ORDER.indexOf(k);
       if (idx > at) { marks.push({ k, s: m.index, e: re.lastIndex }); at = idx; }
     }
     const isNone = (s) => /^none\.?$/i.test(String(s || "").trim());
+    const lines = (s) => String(s || "").split(/\n+/).map((x) => x.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim()).filter((x) => x && !isNone(x)).slice(0, 8);
     if (!marks.length) {
       const a = t.trim();
-      return { read: "", answer: a, say: done ? toSpeech(a) : "", steps: [], found: true, answerDone: done, sayDone: done, stepsDone: done };
+      return { read: "", answer: a, say: done ? toSpeech(a) : "", steps: [], saySteps: [], found: true, answerDone: done, sayDone: done, stepsDone: done };
     }
     const sec = {}, fin = {};
     marks.forEach((mk, i) => {
@@ -485,9 +809,9 @@ window.MathJax = {
     });
     const readRaw = sec.READ || "";
     const found = !(fin.READ && isNone(readRaw));
-    const steps = sec.STEPS && !isNone(sec.STEPS)
-      ? sec.STEPS.split(/\n+/).map((s) => s.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim()).filter((s) => s && !isNone(s)).slice(0, 8)
-      : [];
+    const steps = sec.STEPS && !isNone(sec.STEPS) ? lines(sec.STEPS) : [];
+    let saySteps = sec.SAYSTEPS && !isNone(sec.SAYSTEPS) ? lines(sec.SAYSTEPS) : [];
+    if (!fin.SAYSTEPS && saySteps.length && !/\n\s*$/.test(t)) saySteps = saySteps.slice(0, -1);
     let say = sec.SAY || "";
     if (done && !say) say = toSpeech(sec.ANSWER || "");
     return {
@@ -495,6 +819,7 @@ window.MathJax = {
       answer: sec.ANSWER || "",
       say,
       steps,
+      saySteps,
       found,
       answerDone: !!fin.ANSWER || done,
       sayDone: !!fin.SAY,
@@ -511,7 +836,7 @@ window.MathJax = {
   }
   function beginAnswer() {
     rs = { answerRaw: null, answerTypeset: false, stepsKey: "", stepsTypeset: false };
-    state.isExample = false;
+    state.playerReady = false;
     setTag("working", "Reading");
     $("metaText").textContent = "Sending to Claude";
     $("readBox").hidden = true;
@@ -522,9 +847,9 @@ window.MathJax = {
     w.className = "working-line";
     w.textContent = "Reading the text";
     a.appendChild(w);
-    $("actions").hidden = true;
     $("stepsBox").hidden = true;
     $("stepsBox").open = false;
+    paintPlayer();
   }
   function renderAnswer(p, done) {
     if (p.read || (done && !p.found)) {
@@ -550,25 +875,28 @@ window.MathJax = {
       a.className = "answer";
       typeset(a);
     }
-    const key = p.steps.join("\n");
-    if (key !== rs.stepsKey) {
-      rs.stepsKey = key;
-      rs.stepsTypeset = false;
+    renderSteps(p.steps, p.stepsDone);
+  }
+  function renderSteps(steps, typesetNow) {
+    const key = steps.join("\n");
+    if (!rs || key !== rs.stepsKey) {
+      if (rs) { rs.stepsKey = key; rs.stepsTypeset = false; }
       const ol = $("stepsList");
       ol.innerHTML = "";
-      p.steps.forEach((s) => { const li = document.createElement("li"); li.textContent = s; ol.appendChild(li); });
-      $("stepsSummary").textContent = "Steps (" + p.steps.length + ")";
-      $("stepsBox").hidden = !p.steps.length;
+      steps.forEach((s) => { const li = document.createElement("li"); li.textContent = s; ol.appendChild(li); });
+      $("stepsSummary").textContent = "Steps (" + steps.length + ")";
+      $("stepsBox").hidden = !steps.length;
     }
-    if (p.steps.length && p.stepsDone && !rs.stepsTypeset) {
-      rs.stepsTypeset = true;
+    if (steps.length && typesetNow && (!rs || !rs.stepsTypeset)) {
+      if (rs) rs.stepsTypeset = true;
       typeset($("stepsList"));
     }
   }
   function finishAnswer(p, meta) {
-    $("actions").hidden = !p.found;
     if (p.found) setTag("answer", "Answer"); else setTag("", "No text");
     $("metaText").textContent = meta;
+    state.playerReady = p.found;
+    paintPlayer();
   }
   function showError(msg) {
     setTag("error", "Couldn't answer");
@@ -576,30 +904,64 @@ window.MathJax = {
     const a = $("answerText");
     a.className = "answer quiet";
     a.textContent = msg;
-    $("actions").hidden = true;
+    state.playerReady = false;
+    paintPlayer();
+  }
+  function fmtTime(ts) {
+    try { return new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; }
+  }
+  function showEntry(entry, tagText, meta) {
+    rs = { answerRaw: entry.answer, answerTypeset: true, stepsKey: "", stepsTypeset: false };
+    state.current = entry;
+    state.playerReady = true;
+    setTag("answer", tagText);
+    $("metaText").textContent = meta;
+    $("readBox").hidden = !entry.read;
+    $("readText").textContent = entry.read || "";
+    const a = $("answerText");
+    a.className = "answer";
+    a.textContent = entry.answer;
+    typeset(a);
+    renderSteps(entry.steps || [], true);
+    paintPlayer();
   }
 
+  // ---------- saved answers ----------
+  function saveHistory() { if (settings.keepHistory) store.set("history", state.history); }
   function pushHistory(entry) {
     state.history.unshift(entry);
-    state.history = state.history.slice(0, 8);
-    const prev = state.history.slice(1);
-    $("historyBox").hidden = !prev.length;
-    $("historySummary").textContent = "Earlier (" + prev.length + ")";
+    state.history = state.history.slice(0, 25);
+    saveHistory();
+    renderHistory();
+  }
+  function renderHistory() {
+    const list = state.history.filter((h) => h !== state.current);
+    $("historyBox").hidden = !list.length;
+    $("historySummary").textContent = "Saved (" + list.length + ")";
     const ul = $("historyList");
     ul.innerHTML = "";
-    prev.forEach((h) => {
+    list.forEach((h) => {
       const li = document.createElement("li");
       const b = document.createElement("button");
       b.type = "button";
-      b.setAttribute("aria-label", "Hear this earlier answer");
+      b.setAttribute("aria-label", "Show and hear this saved answer");
+      const top = document.createElement("span"); top.className = "h-top";
       const r = document.createElement("span"); r.className = "h-read"; r.textContent = h.read || "Photo";
+      const tm = document.createElement("span"); tm.className = "h-time"; tm.textContent = h.ts ? fmtTime(h.ts) : "";
+      top.append(r, tm);
       const an = document.createElement("span"); an.className = "h-ans"; an.textContent = h.answer;
-      b.append(r, an);
-      b.addEventListener("click", () => { unlockSpeech(); speak(h.say || toSpeech(h.answer)); });
+      b.append(top, an);
+      b.addEventListener("click", () => {
+        unlock();
+        showEntry(h, "Saved", h.ts ? "Saved at " + fmtTime(h.ts) : "Saved answer");
+        renderHistory();
+        $("sheet").scrollTop = 0;
+        playCurrent(1);
+      });
       li.appendChild(b);
       ul.appendChild(li);
     });
-    if (prev.length) typeset(ul);
+    if (list.length) typeset(ul);
   }
 
   // ---------- images ----------
@@ -648,7 +1010,7 @@ window.MathJax = {
   }
 
   // ---------- Claude ----------
-  async function callApi(blob, onText, signal) {
+  async function callApi(blob, prompt, onText, signal) {
     const data = await blobToBase64(blob);
     let res;
     try {
@@ -663,11 +1025,11 @@ window.MathJax = {
         },
         body: JSON.stringify({
           model: settings.model,
-          max_tokens: 1500,
+          max_tokens: 1800,
           stream: true,
           messages: [{ role: "user", content: [
             { type: "image", source: { type: "base64", media_type: "image/jpeg", data } },
-            { type: "text", text: PROMPT }
+            { type: "text", text: prompt }
           ] }]
         })
       });
@@ -680,12 +1042,12 @@ window.MathJax = {
       try { const j = await res.json(); msg = (j && j.error && j.error.message) || ""; } catch (e) { /* not json */ }
       throw { code: "api", status: res.status, message: msg };
     }
-    const reader = res.body.getReader();
+    const rd = res.body.getReader();
     const dec = new TextDecoder();
     let buf = "", text = "";
     try {
       for (;;) {
-        const { value, done } = await reader.read();
+        const { value, done } = await rd.read();
         if (done) break;
         buf += dec.decode(value, { stream: true });
         let i;
@@ -738,6 +1100,7 @@ window.MathJax = {
 
   function modelName() { const m = MODELS.find((x) => x.id === settings.model); return m ? m.name : settings.model; }
   function tierName(id) { const t = TIERS.find((x) => x.id === id); return t ? t.name : "Claude"; }
+  function entryFrom(p) { return { read: p.read, answer: p.answer, say: p.say, steps: p.steps, saySteps: p.saySteps, ts: Date.now() }; }
 
   async function ask(trigger, file) {
     if (state.busy) return;
@@ -753,30 +1116,43 @@ window.MathJax = {
     try { blob = await toJpeg(canvas); } catch (e) { toast("That photo couldn't be prepared. Try again.", "warn"); return; }
     if (file) showStill(blob);
 
+    rStop();
+    const run = ++state.run;
     state.busy = true;
     state.ctl = new AbortController();
     setBusy(true);
     flashBrackets();
+    cue("capture");
     beginAnswer();
-    if (window.speechSynthesis) { try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ } }
 
     const t0 = performance.now();
-    let spoken = false;
-    const spokenText = (p) => p.say + (settings.speakSteps && p.steps.length ? ". " + p.steps.map(toSpeech).join(". ") : "");
+    let readingStarted = false;
+    const owner = "run" + run;
     const onUpdate = (text, done) => {
       const p = parseReply(text, done);
       renderAnswer(p, done);
-      if (!spoken && settings.voiceOn && p.found && p.say && (done || (p.sayDone && !settings.speakSteps))) {
-        spoken = true;
-        speak(spokenText(p));
+      if (p.found && p.say && (p.sayDone || done)) {
+        state.current = entryFrom(p);
+        if (settings.voiceOn) {
+          const final = done || (!settings.readSteps && p.sayDone);
+          const items = speechItems(p, settings.readSteps, done);
+          if (!readingStarted) {
+            readingStarted = true;
+            state.playerReady = true;
+            rStart(items, final, settings.repeats, owner);
+          } else if (reader.owner === owner) {
+            rUpdate(items, final);
+          }
+        }
       }
       return p;
     };
 
     try {
       let text, by;
+      const prompt = buildPrompt();
       if (state.backend === "sample") {
-        const r = await state.sample(PROMPT, {
+        const r = await state.sample(prompt, {
           images: blob,
           modelTier: settings.tier,
           signal: state.ctl.signal,
@@ -786,15 +1162,19 @@ window.MathJax = {
         by = tierName(r.modelTierApplied || settings.tier);
         if (r.truncated) toast("The answer was cut short. Try framing just one question.");
       } else {
-        text = await callApi(blob, (t) => onUpdate(t, false), state.ctl.signal);
+        text = await callApi(blob, prompt, (t) => onUpdate(t, false), state.ctl.signal);
         by = modelName();
       }
       const p = onUpdate(text, true);
       const secs = ((performance.now() - t0) / 1000).toFixed(1);
+      if (p.found) {
+        state.current = entryFrom(p);
+        pushHistory(state.current);
+        if (reader.owner === owner) rUpdate(speechItems(state.current, settings.readSteps, true), true);
+      }
       finishAnswer(p, secs + " s · " + by);
-      state.current = { read: p.read, answer: p.answer, say: spokenText(p), steps: p.steps };
-      if (p.found) pushHistory(state.current);
     } catch (e) {
+      if (reader.owner === owner) rStop();
       if (e && e.code === "cancelled") {
         setTag("", "Stopped");
         $("metaText").textContent = "";
@@ -808,6 +1188,7 @@ window.MathJax = {
       state.ctl = null;
       state.lastFire = Date.now();
       setBusy(false);
+      updateHint();
     }
   }
 
@@ -832,20 +1213,22 @@ window.MathJax = {
   // ---------- camera ----------
   function updateMode() {
     const live = state.live;
-    const chip = $("modeChip");
-    chip.textContent = live ? "Live" : "Photo";
-    chip.classList.toggle("live", live);
     $("video").hidden = !live;
     if (live) { $("still").hidden = true; $("placeholder").hidden = true; }
     else if ($("still").hidden) { $("placeholder").hidden = false; }
     $("flipBtn").classList.toggle("spacer", !live);
     $("flipBtn").tabIndex = live ? 0 : -1;
-    $("autoChip").hidden = !(live && state.backend === "api");
+    const autoOk = live && state.backend === "api";
+    $("autoChip").hidden = !autoOk;
     $("autoChip").setAttribute("aria-pressed", String(settings.auto));
-    $("autoField").hidden = !(live && state.backend === "api");
+    $("autoField").hidden = !autoOk;
+    $("autoSec").hidden = !autoOk;
     if (!live) $("torchBtn").hidden = true;
     updateHint();
+    paintPlayer();
   }
+  let autoHint = "";
+  function setAutoHint(t) { if (t !== autoHint) { autoHint = t; updateHint(); } }
   function updateHint() {
     const hint = $("hint");
     if (!state.live) { hint.hidden = true; return; }
@@ -920,12 +1303,12 @@ window.MathJax = {
   });
 
   // ---------- auto answer: move to new text, hold still, it answers (live camera + own API key) ----------
-  // Measured on a coarse, contrast-normalized grid so hand shake and exposure flicker don't count as motion.
-  // A real move (pan to the next question) re-arms it; holding still on the new view fires it.
+  // Motion is measured on a coarse, contrast-normalized grid so hand shake and exposure flicker don't count.
+  // A real move re-arms it; holding still on the new view fires it. While an answer is being read it waits.
   const AW = 64, AH = 48, BW = 16, BH = 12, TICK = 200;
-  const T_STEADY = 0.26;   // smoothed motion below this = holding still
-  const T_MOVE = 0.36;     // one tick above this = you moved to something new
-  const T_RUN = 0.9;       // or a slow pan: consecutive motion above 0.2 adding up to this
+  const T_STEADY = 0.26;
+  const T_MOVE = 0.36;
+  const T_RUN = 0.9;
   const small = document.createElement("canvas");
   small.width = AW; small.height = AH;
   const sctx = small.getContext("2d", { willReadFrequently: true });
@@ -951,13 +1334,6 @@ window.MathJax = {
   }
   function blockDiff(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]); return s / a.length; }
   function rearmAuto(armed) { auto.armed = armed; auto.steadyMs = 0; auto.run = 0; }
-  const HOLDS = [
-    { id: 600, name: "Quick", sub: "0.6 s" },
-    { id: 900, name: "Normal", sub: "0.9 s" },
-    { id: 1400, name: "Patient", sub: "1.4 s" }
-  ];
-  let autoHint = "";
-  function setAutoHint(t) { if (t !== autoHint) { autoHint = t; updateHint(); } }
   setInterval(() => {
     const on = state.live && state.backend === "api" && settings.auto && settings.apiKey.trim()
       && !document.hidden && $("settings").hidden;
@@ -974,14 +1350,22 @@ window.MathJax = {
     const content = g.std >= 4 && g.mean > 18;
     const steady = content && auto.ema < T_STEADY;
     auto.steadyMs = steady ? auto.steadyMs + TICK : 0;
-    if (state.busy) { setAutoHint("Reading"); return; }
     const hold = settings.holdMs || 900;
-    if (!auto.armed) { setRing(0); setAutoHint("Answered. Move to the next question."); return; }
+    if (settings.waitForVoice && rActive()) {
+      setRing(0);
+      if (reader.state === "paused") setAutoHint("Paused. Play or stop to move on.");
+      else if (auto.armed && !state.busy) setAutoHint("New page seen. Scanning after this answer.");
+      else setAutoHint(reader.passes > 1 ? "Reading answer, pass " + reader.pass + " of " + reader.passes : "Reading answer");
+      return;
+    }
+    if (state.busy) { setRing(0); setAutoHint("Thinking"); return; }
+    if (!auto.armed) { setRing(0); setAutoHint("Done. Move to the next question."); return; }
     if (!content) { setRing(0); setAutoHint("Point at some text"); return; }
     if (!steady) { setRing(0); setAutoHint("Hold steady on a question"); return; }
     setRing(auto.steadyMs / hold);
     setAutoHint("Hold still");
-    if (auto.steadyMs >= hold && Date.now() - state.lastFire > 1200) {
+    const since = Date.now() - state.lastFire;
+    if (auto.steadyMs >= hold && since > (settings.voiceOn ? 1200 : 2500) && Date.now() - reader.endedAt > 700) {
       rearmAuto(false);
       ask("auto");
     }
@@ -1009,11 +1393,12 @@ window.MathJax = {
     const sel = $("voiceSelect");
     const cur = pickVoice();
     sel.innerHTML = "";
-    if (!voices.length) {
-      const o = document.createElement("option"); o.textContent = "Default voice"; o.value = ""; sel.appendChild(o);
-      return;
-    }
-    const en = voices.filter((v) => /^en/i.test(v.lang)), rest = voices.filter((v) => !/^en/i.test(v.lang));
+    const auto0 = document.createElement("option");
+    auto0.value = "";
+    auto0.textContent = "Best available" + (cur && !settings.voiceURI ? " (" + cur.name + ")" : "");
+    sel.appendChild(auto0);
+    const en = voices.filter((v) => /^en/i.test(v.lang)).sort((a, b) => voiceScore(b) - voiceScore(a));
+    const rest = voices.filter((v) => !/^en/i.test(v.lang));
     [["English", en], ["Other languages", rest]].forEach(([label, list]) => {
       if (!list.length) return;
       const og = document.createElement("optgroup"); og.label = label;
@@ -1021,29 +1406,46 @@ window.MathJax = {
         const o = document.createElement("option");
         o.value = v.voiceURI;
         o.textContent = v.name + " (" + v.lang + ")";
-        if (cur && v.voiceURI === cur.voiceURI) o.selected = true;
         og.appendChild(o);
       });
       sel.appendChild(og);
     });
+    sel.value = settings.voiceURI && voices.some((v) => v.voiceURI === settings.voiceURI) ? settings.voiceURI : "";
   }
+  function paintRanges() {
+    $("rate").value = String(settings.rate);
+    $("rateOut").textContent = Number(settings.rate).toFixed(2) + "×";
+    $("volume").value = String(settings.volume);
+    $("volumeOut").textContent = Math.round(settings.volume * 100) + "%";
+  }
+  let clearArmed = 0;
   function openSettings(needKey) {
     const api = state.backend === "api";
     $("keyField").hidden = !api;
     $("modelField").hidden = !api;
     $("tierField").hidden = state.backend !== "sample";
-    $("autoField").hidden = !(state.live && api);
     $("apiKey").value = settings.apiKey;
     $("autoCheck").checked = settings.auto;
-    $("stepsCheck").checked = settings.speakSteps;
-    $("rate").value = String(settings.rate);
-    $("rateLabel").textContent = "Speed " + Number(settings.rate).toFixed(2) + "x";
+    $("waitCheck").checked = settings.waitForVoice;
+    $("stepsCheck").checked = settings.readSteps;
+    $("againCheck").checked = settings.sayAgain;
+    $("cuesCheck").checked = settings.cues;
+    $("keepCheck").checked = settings.keepHistory;
+    $("extra").value = settings.extra || "";
+    paintRanges();
     seg($("modelSeg"), MODELS, settings.model, (id) => { save("model", id); $("modelNote").textContent = MODELS.find((m) => m.id === id).note; });
     $("modelNote").textContent = (MODELS.find((m) => m.id === settings.model) || MODELS[1]).note;
     seg($("tierSeg"), TIERS, settings.tier, (id) => save("tier", id));
     seg($("holdSeg"), HOLDS, settings.holdMs, (id) => save("holdMs", id));
+    seg($("repeatSeg"), REPEATS, settings.repeats, (id) => save("repeats", id));
+    seg($("pauseSeg"), PAUSES, settings.pauseMs, (id) => save("pauseMs", id));
+    clearArmed = 0;
+    $("clearBtn").textContent = "Clear saved answers";
     loadVoices();
+    fillVoices();
+    updateMode();
     $("settings").hidden = false;
+    $("settingsPanel").scrollTop = 0;
     if (needKey && api) {
       toast("Paste your Anthropic API key to start answering.");
       setTimeout(() => $("apiKey").focus(), 50);
@@ -1052,6 +1454,8 @@ window.MathJax = {
   function closeSettings() {
     const k = $("apiKey").value.trim();
     if (k !== settings.apiKey) save("apiKey", k);
+    const ex = $("extra").value.trim();
+    if (ex !== settings.extra) save("extra", ex);
     $("settings").hidden = true;
     $("apiKey").type = "password";
     $("keyShow").textContent = "Show";
@@ -1060,7 +1464,7 @@ window.MathJax = {
 
   // ---------- wiring ----------
   $("shutter").addEventListener("click", () => {
-    unlockSpeech();
+    unlock();
     if (state.busy) { if (state.ctl) state.ctl.abort(); return; }
     if (state.live) { rearmAuto(false); ask("tap"); return; }
     if (state.backend === "none") { toast(state.note, "warn", 6000); return; }
@@ -1068,7 +1472,7 @@ window.MathJax = {
     $("snapInput").click();
   });
   $("libraryBtn").addEventListener("click", () => {
-    unlockSpeech();
+    unlock();
     if (state.busy) return;
     if (state.backend === "none") { toast(state.note, "warn", 6000); return; }
     if (state.backend === "api" && !settings.apiKey.trim()) { openSettings(true); return; }
@@ -1095,22 +1499,46 @@ window.MathJax = {
     updateMode();
     toast(settings.auto ? "Auto answer on. Hold steady on a question." : "Auto answer off. Tap the shutter to answer.");
   });
-  function paintVoice() {
-    $("voiceBtn").setAttribute("aria-pressed", String(settings.voiceOn));
-    $("voiceOnIcon").hidden = !settings.voiceOn;
-    $("voiceOffIcon").hidden = settings.voiceOn;
+  function paintMute() {
+    const muted = !settings.voiceOn;
+    $("muteBtn").classList.toggle("muted", muted);
+    $("muteBtn").setAttribute("aria-pressed", String(muted));
+    $("muteBtn").setAttribute("aria-label", muted ? "Unmute" : "Mute");
+    vis("voiceOnIcon", !muted);
+    vis("voiceOffIcon", muted);
   }
-  $("voiceBtn").addEventListener("click", () => {
-    unlockSpeech();
+  $("muteBtn").addEventListener("click", () => {
+    unlock();
     save("voiceOn", !settings.voiceOn);
-    paintVoice();
-    if (!settings.voiceOn && window.speechSynthesis) window.speechSynthesis.cancel();
-    toast(settings.voiceOn ? "Answers will be read aloud." : "Voice off. Answers show on screen only.");
+    paintMute();
+    if (!settings.voiceOn) rStop();
+    paintPlayer();
+    toast(settings.voiceOn ? "Sound on. Answers will be read aloud." : "Muted. Answers show on screen only.");
   });
-  $("replayBtn").addEventListener("click", () => { unlockSpeech(); speak(state.current.say || toSpeech(state.current.answer)); });
+
+  // player
+  $("playBtn").addEventListener("click", () => {
+    unlock();
+    if (reader.state === "paused") { rResume(); return; }
+    if (rActive()) { rPause(); return; }
+    playCurrent(1);
+  });
+  $("backBtn").addEventListener("click", () => { unlock(); rBack(); });
+  $("nextBtn").addEventListener("click", () => { unlock(); rNext(); });
+  $("stopBtn").addEventListener("click", () => { rStop(); updateHint(); });
+  $("speedBtn").addEventListener("click", () => {
+    const r = Number(settings.rate);
+    const next = SPEEDS.find((s) => s > r + 0.001);
+    save("rate", next === undefined ? SPEEDS[0] : next);
+    paintPlayer();
+    paintRanges();
+    toast("Reading speed " + fmtRate(settings.rate) + ". Applies from the next line.", null, 2200);
+  });
   $("copyBtn").addEventListener("click", () => {
     const c = state.current;
-    const text = c.answer + (c.steps.length ? "\n\n" + c.steps.map((s, i) => (i + 1) + ". " + s).join("\n") : "");
+    if (!c) return;
+    const steps = c.steps || [];
+    const text = c.answer + (steps.length ? "\n\n" + steps.map((s, i) => (i + 1) + ". " + s).join("\n") : "");
     try {
       navigator.clipboard.writeText(text).then(() => toast("Copied."), () => toast("Copy isn't available here. Press and hold the answer to select it."));
     } catch (e) { toast("Copy isn't available here. Press and hold the answer to select it."); }
@@ -1120,6 +1548,8 @@ window.MathJax = {
     $("grip").setAttribute("aria-expanded", String(ex));
     $("grip").setAttribute("aria-label", ex ? "Shrink answer" : "Expand answer");
   });
+
+  // settings
   $("settingsBtn").addEventListener("click", () => openSettings(false));
   $("settingsClose").addEventListener("click", closeSettings);
   $("settingsDone").addEventListener("click", closeSettings);
@@ -1131,20 +1561,43 @@ window.MathJax = {
     $("keyShow").textContent = i.type === "password" ? "Show" : "Hide";
   });
   $("autoCheck").addEventListener("change", (e) => { save("auto", e.target.checked); rearmAuto(true); });
-  $("stepsCheck").addEventListener("change", (e) => save("speakSteps", e.target.checked));
-  $("rate").addEventListener("input", (e) => {
-    save("rate", Number(e.target.value));
-    $("rateLabel").textContent = "Speed " + Number(e.target.value).toFixed(2) + "x";
+  $("waitCheck").addEventListener("change", (e) => save("waitForVoice", e.target.checked));
+  $("stepsCheck").addEventListener("change", (e) => save("readSteps", e.target.checked));
+  $("againCheck").addEventListener("change", (e) => save("sayAgain", e.target.checked));
+  $("cuesCheck").addEventListener("change", (e) => { unlock(); save("cues", e.target.checked); if (e.target.checked) cue("done"); });
+  $("keepCheck").addEventListener("change", (e) => {
+    save("keepHistory", e.target.checked);
+    if (e.target.checked) store.set("history", state.history); else store.set("history", []);
   });
+  $("rate").addEventListener("input", (e) => { save("rate", Number(e.target.value)); paintRanges(); paintPlayer(); });
+  $("volume").addEventListener("input", (e) => { save("volume", Number(e.target.value)); paintRanges(); });
   $("voiceSelect").addEventListener("change", (e) => save("voiceURI", e.target.value));
-  $("testVoice").addEventListener("click", () => { unlockSpeech(); speak("This is how your answers will sound."); });
+  $("extra").addEventListener("change", (e) => save("extra", e.target.value.trim()));
+  $("testVoice").addEventListener("click", () => {
+    unlock();
+    rStart(["This is how your answers will sound.", "x equals negative 3 over 4."], true, 1, "test");
+  });
+  $("clearBtn").addEventListener("click", () => {
+    if (Date.now() - clearArmed > 3500) {
+      clearArmed = Date.now();
+      $("clearBtn").textContent = "Tap again to clear";
+      return;
+    }
+    clearArmed = 0;
+    state.history = [];
+    store.set("history", []);
+    renderHistory();
+    $("clearBtn").textContent = "Cleared";
+  });
 
   // ---------- start ----------
-  paintVoice();
+  paintMute();
   if (window.speechSynthesis) {
     loadVoices();
     try { window.speechSynthesis.addEventListener("voiceschanged", loadVoices); } catch (e) { window.speechSynthesis.onvoiceschanged = loadVoices; }
   }
+  renderHistory();
+  paintPlayer();
   if (IN_VIEWER) {
     $("placeholder").hidden = false;
     window.claude.use("sample").then(async (s) => {

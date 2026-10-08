@@ -2,7 +2,12 @@
 
 Point your phone camera at a question and hear the answer.
 
-Live camera feed. Hold the phone steady on new text for about a second and Readout answers out loud, or tap the shutter. Math renders with LaTeX, worked steps fold out under the answer.
+Live camera feed. Move to a question and hold still: Readout answers out loud, once per question.
+
+- Dictation-style voice: slower by default, one line at a time with pauses, math spoken the way a teacher reads it
+- Repeats each answer 1, 2 or 3 times, and waits until it's done before scanning the next page
+- Replay line, pause, skip, stop, and a speed button while it reads
+- Mute, volume, voice choice, sound cues, extra instructions, saved answers
 
 ## Use it
 
