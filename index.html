@@ -507,8 +507,8 @@ window.MathJax = {
     "Be correct first, then brief. Check your arithmetic. Ignore background clutter and text cut off at the edges.",
     "",
     "Reply format. One item per line and nothing else: no blank lines, no markdown. Each line is: TAG: display text || spoken text",
-    "- display text is shown on screen. Write math in \\( \\) and money as \\$.",
-    "- spoken text is read aloud for dictation: plain words, no symbols or LaTeX. Say math the way a teacher dictates it, for example \"x equals negative 3 over 4\", \"2 x squared plus 5 x\", \"the square root of 2, all over 2\".",
+    "- display text is shown on screen. Write math in \\( \\) and money as \\$. Write absolute value and magnitude as \\lvert x \\rvert or \\lVert v \\rVert, never as bare | bars, so a line never has two | in a row except the divider.",
+    "- spoken text is read aloud for dictation: plain words only, never LaTeX, backslashes, braces or | bars. Say math the way a teacher dictates it, for example \"x equals negative 3 over 4\", \"2 x squared plus 5 x\", \"the square root of 2, all over 2\".",
     "",
     "Tags, in this order:",
     "Q: the question or the shared instructions, copied faithfully. Leave it out only if there is no shared text.",
@@ -689,18 +689,41 @@ window.MathJax = {
   document.addEventListener("pointerdown", unlock, { capture: true });
 
   // ---------- text helpers ----------
+  // Fallback: turn leftover LaTeX into words, in case a spoken line ever arrives with math code in it.
+  const GREEK = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi pi rho sigma tau upsilon phi chi psi omega Gamma Delta Theta Lambda Sigma Phi Psi Omega".split(" ");
   function toSpeech(s) {
-    return String(s || "")
-      .replace(/\\\$\s?(\d[\d,.]*)/g, " $1 dollars ").replace(/\\\$/g, " dollars ")
+    let t = String(s || "");
+    t = t.replace(/\\\$\s?(\d[\d,.]*)/g, " $1 dollars ").replace(/\\\$/g, " dollars ")
       .replace(/\\\(|\\\)|\\\[|\\\]|\$\$?/g, " ")
-      .replace(/\\d?frac\{([^{}]*)\}\{([^{}]*)\}/g, " $1 over $2 ")
-      .replace(/\\sqrt\{([^{}]*)\}/g, " square root of $1 ")
-      .replace(/\^\{?2\}?/g, " squared ").replace(/\^\{?3\}?/g, " cubed ")
+      .replace(/\\(left|right|big|Big|bigg|Bigg)\b/g, "")
+      .replace(/\\(mathbf|vec|boldsymbol|hat|bar|mathrm|text|textbf|operatorname|mathit)\{([^{}]*)\}/g, " $2 ")
+      .replace(/\\\|([^|]+?)\\\|/g, " the magnitude of $1 ")
+      .replace(/\\lVert([^]*?)\\rVert/g, " the magnitude of $1 ")
+      .replace(/\\lvert([^]*?)\\rvert/g, " the absolute value of $1 ");
+    for (let k = 0; k < 3; k++) {
+      t = t.replace(/\\d?t?frac\{([^{}]*)\}\{([^{}]*)\}/g, " $1 over $2 ")
+        .replace(/\\sqrt\[([^\]]*)\]\{([^{}]*)\}/g, " the $1 root of $2 ")
+        .replace(/\\sqrt\{([^{}]*)\}/g, " the square root of $1 ");
+    }
+    t = t.replace(/\|([^|]{1,40})\|/g, " the magnitude of $1 ")
+      .replace(/\^\{?2\}?(?![\d])/g, " squared ").replace(/\^\{?3\}?(?![\d])/g, " cubed ")
       .replace(/\^\{([^{}]*)\}/g, " to the $1 ").replace(/\^(\w)/g, " to the $1 ")
-      .replace(/\\(cdot|times)/g, " times ").replace(/\\pi/g, " pi ")
-      .replace(/\\(sin|cos|tan|ln|log|lim|int|sum)/g, " $1 ")
-      .replace(/\\[a-zA-Z]+/g, " ").replace(/[{}_\\]/g, " ")
+      .replace(/_\{([^{}]*)\}/g, " sub $1 ").replace(/_(\w)/g, " sub $1 ")
+      .replace(/\\cdot/g, " times ").replace(/\\times/g, " times ").replace(/\\div/g, " divided by ")
+      .replace(/\\pm/g, " plus or minus ").replace(/\\approx/g, " approximately ")
+      .replace(/\\(leq|le)\b/g, " is less than or equal to ").replace(/\\(geq|ge)\b/g, " is greater than or equal to ")
+      .replace(/\\(neq|ne)\b/g, " does not equal ").replace(/\\infty/g, " infinity ").replace(/\\to\b|\\rightarrow/g, " goes to ")
+      .replace(/\\(sin|cos|tan|sec|csc|cot|ln|log|lim|int|sum|max|min)\b/g, " $1 ")
+      .replace(/\\([A-Za-z]+)/g, (m, w) => (GREEK.indexOf(w) >= 0 ? " " + w.toLowerCase() + " " : " "))
+      .replace(/[{}\\|]/g, " ")
+      .replace(/</g, " is less than ").replace(/>/g, " is greater than ")
       .replace(/\s=\s|=/g, " equals ").replace(/\s+/g, " ").trim();
+    return t;
+  }
+  // Anything spoken goes through this, so math code is never read out literally.
+  function speakable(s) {
+    const t = String(s || "");
+    return /\\[A-Za-z(\[)\]|$]|[{}^_]|\|\|/.test(t) ? toSpeech(t.replace(/\|\|/g, " ")) : t;
   }
   function plain(s) { return String(s || "").replace(/\\\(|\\\)|\\\[|\\\]/g, "").replace(/\s+/g, " ").trim(); }
   function sentences(s) {
@@ -721,19 +744,20 @@ window.MathJax = {
   // Spoken plan: question, then each part's text and answer. Repeats read part labels and answers only.
   function speechPlan(e, withSteps) {
     const first = [], again = [];
-    if (e.q && e.q.s) sentences(e.q.s).forEach((t) => first.push({ t, k: "q", i: -1 }));
+    if (e.q && e.q.s) sentences(speakable(e.q.s)).forEach((t) => first.push({ t, k: "q", i: -1 }));
     e.parts.forEach((p, i) => {
       const lab = labelSpoken(p);
       if (p.p && p.p.s) {
-        const ps = sentences(p.p.s);
+        const ps = sentences(speakable(p.p.s));
         if (lab && ps.length && !/^(part|number|question|problem)\b/i.test(ps[0])) ps[0] = lab + " " + ps[0];
         ps.forEach((t) => first.push({ t, k: "p", i }));
       } else if (lab) {
         first.push({ t: lab, k: "label", i });
       }
-      if (withSteps && p.w.length) p.w.forEach((w) => sentences(w.s).forEach((t) => first.push({ t, k: "w", i })));
+      if (withSteps && p.w.length) p.w.forEach((w) => sentences(speakable(w.s)).forEach((t) => first.push({ t, k: "w", i })));
       if (p.a && p.a.s) {
-        const ans = /^answer\b/i.test(p.a.s) ? p.a.s : "Answer: " + p.a.s;
+        const sa = speakable(p.a.s);
+        const ans = /^answer\b/i.test(sa) ? sa : "Answer: " + sa;
         const lines = sentences(ans);
         lines.forEach((t) => first.push({ t, k: "a", i }));
         if (lab) again.push({ t: lab, k: "label", i });
@@ -749,9 +773,20 @@ window.MathJax = {
     const out = { none: false, q: null, parts: [], found: false };
     if (/^\s*NONE\.?\s*$/i.test(text)) { out.none = done; return out; }
     let cur = null, last = null, tagged = false;
+    // The divider is the last "||" outside math. Bars inside math (|a||b|) are skipped.
     const field = (raw) => {
-      const k = raw.indexOf("||");
-      return k < 0 ? { d: raw.trim(), s: "" } : { d: raw.slice(0, k).trim(), s: raw.slice(k + 2).trim() };
+      let depth = 0, cut = -1;
+      for (let i = 0; i < raw.length; i++) {
+        const c = raw[i], n = raw[i + 1];
+        if (c === "\\") {
+          if (n === "(" || n === "[") depth++;
+          else if (n === ")" || n === "]") depth = Math.max(0, depth - 1);
+          i++;
+          continue;
+        }
+        if (c === "|" && n === "|" && depth === 0) { cut = i; i++; }
+      }
+      return cut < 0 ? { d: raw.trim(), s: "" } : { d: raw.slice(0, cut).trim(), s: raw.slice(cut + 2).trim() };
     };
     const newPart = (label) => { cur = { label: label || "", p: null, w: [], a: null }; out.parts.push(cur); return cur; };
     text.split("\n").forEach((line) => {
