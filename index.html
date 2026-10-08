@@ -365,6 +365,11 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
         <div class="seg" id="pauseSeg"></div>
       </div>
       <div class="field">
+        <span class="label">Pause between terms</span>
+        <div class="seg" id="termSeg"></div>
+        <p>A beat before each plus, minus, equals and over, so you can write one number at a time.</p>
+      </div>
+      <div class="field">
         <label class="check"><input type="checkbox" id="stepsCheck"><span>Read the worked steps too<small>Reads each part's steps before its answer.</small></span></label>
         <label class="check"><input type="checkbox" id="againCheck"><span>Say "again" before each repeat</span></label>
         <label class="check"><input type="checkbox" id="cuesCheck"><span>Sound cues<small>A tick when it scans and a chime when it's done reading.</small></span></label>
@@ -436,7 +441,7 @@ window.MathJax = {
     apiKey: "", model: "claude-sonnet-5-5", tier: "default",
     voiceOn: true, voiceURI: "", rate: 0.8, volume: 1,
     engine: "device", gKey: "", gVoice: "en-US-Chirp3-HD-Charon", gCap: true,
-    repeats: 2, repeatWhat: "answers", pauseMs: 1200, readSteps: false, sayAgain: true, cues: true,
+    repeats: 2, repeatWhat: "answers", pauseMs: 1200, termPauseMs: 650, readSteps: false, sayAgain: true, cues: true,
     auto: true, holdMs: 900, waitForVoice: true,
     extra: "", keepHistory: true
   };
@@ -474,6 +479,12 @@ window.MathJax = {
     { id: "answers", name: "Answers", sub: "Part + answer" },
     { id: "all", name: "Everything", sub: "Question too" }
   ];
+  const TERM_PAUSES = [
+    { id: 0, name: "Off", sub: "Flowing" },
+    { id: 350, name: "Short", sub: "0.35 s" },
+    { id: 650, name: "Medium", sub: "0.65 s" },
+    { id: 1100, name: "Long", sub: "1.1 s" }
+  ];
   const PAUSES = [
     { id: 500, name: "Short", sub: "0.5 s" },
     { id: 1200, name: "Medium", sub: "1.2 s" },
@@ -508,7 +519,7 @@ window.MathJax = {
     "",
     "Reply format. One item per line and nothing else: no blank lines, no markdown. Each line is: TAG: display text || spoken text",
     "- display text is shown on screen. Write math in \\( \\) and money as \\$. Write absolute value and magnitude as \\lvert x \\rvert or \\lVert v \\rVert, never as bare | bars, so a line never has two | in a row except the divider.",
-    "- spoken text is read aloud for dictation: plain words only, never LaTeX, backslashes, braces or | bars. Say math the way a teacher dictates it, for example \"x equals negative 3 over 4\", \"2 x squared plus 5 x\", \"the square root of 2, all over 2\".",
+    "- spoken text is read aloud for dictation: plain words only, never LaTeX, backslashes, braces or | bars. Say math the way a teacher dictates it, for example \"x equals negative 3 over 4\", \"2 x squared plus 5 x\", \"the square root of 2, all over 2\". Say subscripts with sub, like \"2 I sub 1 minus 3 I sub 2\". Keep every term in the same order as the display.",
     "",
     "Tags, in this order:",
     "Q: the question or the shared instructions, copied faithfully. Leave it out only if there is no shared text.",
@@ -901,12 +912,29 @@ window.MathJax = {
     state.gWarnAt = Date.now();
     toast(gErrorText(e) + " Using the phone voice for now.", "warn", 6000);
   }
-  function gPrefetch() {
+  function gPrefetch(chunks) {
+    chunks.slice(1).forEach((c) => gSynth(c).catch(() => {}));
     const list = curList();
     for (let k = 1; k <= 2; k++) {
       const it = list[reader.idx + k] || (reader.pass < reader.passes ? (reader.repeat || reader.items)[reader.idx + k - list.length] : null);
-      if (it && it.t) gSynth(it.t).catch(() => {});
+      if (it && it.t) chunkTerms(it.t).forEach((c) => gSynth(c).catch(() => {}));
     }
+  }
+  // Split a spoken equation into terms so each number gets its own beat:
+  // "12 minus 2 I sub 1 equals 0" -> "12" / "minus 2 I sub 1" / "equals 0".
+  const TERM_SPLIT = /\s+(?=(?:plus|minus|equals|times|divided by|over|is less than|is greater than|is at least|is at most|is approximately|approximately)\b)/i;
+  function chunkTerms(t) {
+    const text = String(t || "").trim();
+    if (!settings.termPauseMs || !/\d/.test(text) || !TERM_SPLIT.test(text)) return [text];
+    const out = [];
+    text.split(TERM_SPLIT).forEach((piece) => {
+      piece.split(/(?:,|:)\s+/).forEach((b, i, arr) => {
+        const mark = i < arr.length - 1 ? (piece.indexOf(b + ":") >= 0 ? ":" : ",") : "";
+        const c = (b + mark).trim();
+        if (c) out.push(c);
+      });
+    });
+    return out.length ? out : [text];
   }
 
   // ---------- reader: line by line, with pauses, repeats and a transport ----------
@@ -972,16 +1000,29 @@ window.MathJax = {
     reader.timer = setTimeout(() => { if (my === reader.id) { reader.state = "waiting"; fn(); } }, ms);
   }
   function speakLine(item, after) {
-    const my = ++reader.id;
     reader.state = "speaking";
     reader.now = item.t;
     reader.nowPart = item.k === "x" ? reader.nowPart : item.i;
     reader.lineStart = Date.now();
     paintPlayer();
-    let done = false;
-    const finish = () => { if (done || my !== reader.id) return; done = true; clearTimeout(reader.guard); after(); };
-    if (useGoogle()) { speakGoogle(item.t, my, finish); gPrefetch(); }
-    else speakDevice(item.t, my, finish);
+    const chunks = chunkTerms(item.t);
+    let ci = 0;
+    const step = () => {
+      const my = ++reader.id;
+      const text = chunks[ci++];
+      let done = false;
+      const finish = () => {
+        if (done || my !== reader.id) return;
+        done = true;
+        clearTimeout(reader.guard);
+        if (ci >= chunks.length) { after(); return; }
+        const my2 = ++reader.id;
+        reader.timer = setTimeout(() => { if (my2 === reader.id) step(); }, settings.termPauseMs);
+      };
+      if (useGoogle()) { speakGoogle(text, my, finish); if (ci === 1) gPrefetch(chunks); }
+      else speakDevice(text, my, finish);
+    };
+    step();
   }
   function blockedNotice() {
     rFinish(true);
@@ -1783,6 +1824,7 @@ window.MathJax = {
     seg($("repeatSeg"), REPEATS, settings.repeats, (id) => save("repeats", id));
     seg($("repeatWhatSeg"), REPEAT_WHAT, settings.repeatWhat, (id) => save("repeatWhat", id));
     seg($("pauseSeg"), PAUSES, settings.pauseMs, (id) => save("pauseMs", id));
+    seg($("termSeg"), TERM_PAUSES, settings.termPauseMs, (id) => save("termPauseMs", id));
     clearArmed = 0;
     $("clearBtn").textContent = "Clear saved answers";
     loadVoices();
