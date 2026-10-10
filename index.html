@@ -309,7 +309,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   <div class="settings" id="settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
     <div class="settings-panel" id="settingsPanel">
       <div class="settings-head">
-        <h2 id="settingsTitle">Settings</h2>
+        <h2 id="settingsTitle">Settings · v1011</h2>
         <button class="icon-btn" id="settingsClose" type="button" aria-label="Close settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
@@ -440,6 +440,23 @@ window.MathJax = {
 <script>
 (() => {
   "use strict";
+  // Safety net: guarantee every Anthropic request includes max_tokens.
+  const __origFetch = window.fetch ? window.fetch.bind(window) : null;
+  if (__origFetch) {
+    window.fetch = function (input, init) {
+      try {
+        const url = typeof input === "string" ? input : (input && input.url) || "";
+        if (url.indexOf("api.anthropic.com") >= 0 && init && typeof init.body === "string") {
+          const body = JSON.parse(init.body);
+          if (!body.max_tokens) {
+            body.max_tokens = 4000;
+            init = Object.assign({}, init, { body: JSON.stringify(body) });
+          }
+        }
+      } catch (e) { /* leave request untouched */ }
+      return __origFetch(input, init);
+    };
+  }
   const $ = (id) => document.getElementById(id);
   const vis = (id, on) => { $(id).toggleAttribute("hidden", !on); };
 
