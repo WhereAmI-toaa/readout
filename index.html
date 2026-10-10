@@ -868,6 +868,7 @@ window.MathJax = {
     if (!tagged && done && text.trim()) { newPart(""); cur.a = { d: text.trim(), s: "" }; }
     const fix = (f) => { if (!f) return; f.d = delimitMath(f.d); if (!f.s) f.s = toSpeech(f.d); };    fix(out.q);
     out.parts.forEach((p) => { fix(p.p); p.w.forEach(fix); fix(p.a); });
+      out.tagged = tagged;
     out.found = !!(out.q || out.parts.length);
     return out;
   }
@@ -1731,7 +1732,11 @@ window.MathJax = {
         /\bexam\s+is\s+over\b/i,
         /\bacademic\s+integrity\b/i,
         /here(?:'s|\s+is)\s+(?:the\s+)?(?:same\s+|similar\s+)?method\b/i,
-        /\bpractice\s+(?:exam|problem|question|version|copy|answer)\b/i,
+        /\bpractice\s+(?:example|exam|problem|question|version|copy|answer)\b/i,
+        /\bsample\s+(?:problem|question)\b/i,
+        /\bworked\s+example\b/i,
+        /\btry\s+this\s+(?:one|problem)\b/i,
+        /here(?:'s| is) a similar\b/i,
         /\bdifferent\s+numbers\b/i,
         /\byour\s+own\s+(?:problem|numbers|question)\b/i,
         /\bapply\s+(?:this|the\s+method|the\s+same)\b/i,
@@ -1828,8 +1833,12 @@ window.MathJax = {
           by = modelName();
         }
 
-        // Robust refusal check on the COMPLETE response
-        if (isRefusal(text)) {
+        // Structural refusal check: deflections/refusals never use the TAG format
+        // and never equal a plain NONE. Anything untagged (that isn't NONE) is suspect.
+        const trimmed = String(text || "").trim();
+        const noneOnly = /^\s*NONE\.?\s*$/i.test(trimmed);
+        const suspicious = !noneOnly && (isRefusal(text) || !parseReply(text, true).tagged);
+        if (suspicious) {
           if (attempt < maxRetries) {
             attempt++;
             if (!ocr) {
