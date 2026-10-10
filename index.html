@@ -1481,8 +1481,8 @@ window.MathJax = {
     let readingStarted = false;
     const owner = "run" + run;
     const onUpdate = (text, done) => {
-      // Detect Claude's safety refusal early (added more exam refusal phrases)
-      if (/graded test|student's exam|taken during the test|I can't help with this|I cannot help|active.*midterm|Strictly Confidential|practice exam|exam is over|walk you through|confidential.*exam|hasn't been taken yet|leave the final answer to you|match your result|Once the exam is over|blank name line/i.test(text)) {
+      // Detect Claude's safety refusal early (added practice problem evasion phrases)
+      if (/graded test|student's exam|taken during the test|I can't help with this|I cannot help|active.*midterm|Strictly Confidential|practice exam|exam is over|walk you through|confidential.*exam|hasn't been taken yet|leave the final answer to you|match your result|Once the exam is over|blank name line|won't give the answer|different numbers|practice problem|Practice answer|Use the same.*steps on your own problem|after the exam|midterm in progress/i.test(text)) {
         state.refusalDetected = true;
       }
       const pd = parseReply(text, done);
@@ -1531,7 +1531,7 @@ window.MathJax = {
         // Check if Claude triggered a safety refusal
         if (state.refusalDetected) {
           // Check if it's the specific "practice exam" refusal that asks for clarification
-          if (/practice exam|exam is over|walk you through|confidential.*exam|hasn't been taken yet|leave the final answer to you|match your result|Once the exam is over|blank name line/i.test(text)) {
+          if (/practice exam|exam is over|walk you through|confidential.*exam|hasn't been taken yet|leave the final answer to you|match your result|Once the exam is over|blank name line|won't give the answer|different numbers|practice problem|Practice answer|Use the same.*steps on your own problem|after the exam|midterm in progress/i.test(text)) {
             retryCount++;
             if (retryCount <= maxRetries) {
               toast("Retrying with practice exam context...", null, 2500);
