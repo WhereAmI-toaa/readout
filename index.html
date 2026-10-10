@@ -1604,9 +1604,6 @@ window.MathJax = {
       if (/graded test|student's exam|taken during the test|I can't help with this|I cannot help|active.*midterm|Strictly Confidential/i.test(text)) {
         state.refusalDetected = true;
       }
-
-      const pd = parseReply(text, done);
-
       const pd = parseReply(text, done);
       if (pd.found) { renderEntry(pd, done); if (!done) setTag("working", "Answering"); }
       const ps = done ? pd : parseReply(text.slice(0, text.lastIndexOf("\n") + 1), false);
