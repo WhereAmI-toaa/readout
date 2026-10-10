@@ -1,14 +1,3 @@
-I have reviewed the provided `index.html` file and identified a few issues, primarily related to dead code and stray comments that were likely left over from previous edits or AI generation. 
-
-Here are the specific problems I fixed:
-1. **Dead Code (`retryApiCall`)**: There was a fully defined `retryApiCall` function that was never actually called anywhere in the script. The `ask` function already contained its own complete, standalone `try...catch` block for handling the API request, making `retryApiCall` completely redundant and unused.
-2. **Dead Code (`cropTop`)**: This helper function was only ever referenced inside the dead `retryApiCall` function. Since `retryApiCall` is removed, `cropTop` is also safely removed.
-3. **Unused Variable (`state.retryCount`)**: This property was initialized in the `ask` function but never used, as the retry logic it was meant for was disconnected.
-4. **Stray Comment**: Removed the unprofessional placeholder comment `// ... rest of callApi remains the same` inside the `callApi` function's `catch` block.
-
-Here is the cleaned-up and fully functional `index.html`:
-
-```html
 <!doctype html>
 <html lang="en">
 <head>
@@ -21,17 +10,16 @@ Here is the cleaned-up and fully functional `index.html`:
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Readout">
 <meta name="description" content="Point your camera at a question and hear the answer.">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="icon" type="image/png" href="./icon-192.png">
 <title>Readout</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..800&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400..600&display=swap">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{height:100%}body{margin:0;font:14px system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <script>window.__READOUT_PWA__=true;</script>
-</head>
-<body>
+
 <style>
 /* Layout: full-bleed camera viewfinder; fixed top bar; answer sheet (question, parts with answers, sticky player, steps, saved) and shutter dock stacked over the lower viewfinder */
 :root {
@@ -211,7 +199,8 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 </style>
-
+</head>
+<body>
 <div class="app" id="app">
   <div class="finder" id="finder">
     <video id="video" playsinline muted autoplay hidden></video>
@@ -321,7 +310,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
           <input class="input mono" id="apiKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-ant-...">
           <button class="pill" id="keyShow" type="button">Show</button>
         </div>
-        <p>Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. It stays on this phone and is sent only to Anthropic.</p>
+        <p>Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. It is saved in this browser and sent to Anthropic with each request. Don't use this on a shared device or publish a copy containing your key.</p>
       </div>
 
       <h3 class="sec">Voice</h3>
@@ -484,10 +473,12 @@ window.MathJax = {
   }
 
   const MODELS = [
-    { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5", sub: "Fastest", note: "Fastest replies. Roughly a third of a cent per answer." },
-    { id: "claude-sonnet-5-5", name: "Sonnet 5.5", sub: "Balanced", note: "Strong on math and reading. Roughly half a cent to a cent per answer." },
-    { id: "claude-opus-5-5", name: "Opus 5.5", sub: "Smartest", note: "Best for hard problems. Roughly one to two cents per answer." }
+    { id: "claude-haiku-5-5", name: "Haiku 5.5", sub: "Fastest", note: "Fast responses for clear, straightforward questions." },
+    { id: "claude-sonnet-5-5", name: "Sonnet 5.5", sub: "Balanced", note: "A balance of answer quality and response speed." },
+    { id: "claude-opus-5-5", name: "Opus 5.5", sub: "Smartest", note: "Best suited to the most difficult questions; usage may cost more." }
   ];
+  if (!MODELS.some((m) => m.id === settings.model)) save("model", DEF.model);
+
   const TIERS = [
     { id: "quick", name: "Quick", sub: "Instant" },
     { id: "default", name: "Balanced", sub: "Thinks first" },
@@ -1303,6 +1294,7 @@ window.MathJax = {
   // ---------- saved answers ----------
   function saveHistory() { if (settings.keepHistory) store.set("history", state.history); }
   function pushHistory(entry) {
+    if (!settings.keepHistory) return;
     state.history.unshift(entry);
     state.history = state.history.slice(0, 25);
     saveHistory();
@@ -2354,8 +2346,15 @@ window.MathJax = {
   $("againCheck").addEventListener("change", (e) => save("sayAgain", e.target.checked));
   $("cuesCheck").addEventListener("change", (e) => { unlock(); save("cues", e.target.checked); if (e.target.checked) cue("done"); });
   $("keepCheck").addEventListener("change", (e) => {
-    save("keepHistory", e.target.checked);
-    if (e.target.checked) store.set("history", state.history); else store.set("history", []);
+    const enabled = !!e.target.checked;
+    save("keepHistory", enabled);
+    if (enabled) {
+      store.set("history", state.history);
+    } else {
+      state.history = [];
+      store.set("history", []);
+      renderHistory();
+    }
   });
   $("rate").addEventListener("input", (e) => { save("rate", Number(e.target.value)); paintRanges(); paintPlayer(); });
   $("volume").addEventListener("input", (e) => { save("volume", Number(e.target.value)); paintRanges(); });
@@ -2418,4 +2417,3 @@ window.MathJax = {
 </script>
 </body>
 </html>
-```
