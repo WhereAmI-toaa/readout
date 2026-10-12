@@ -10,15 +10,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Readout">
 <meta name="description" content="Point your camera at a question and hear the answer.">
-<link rel="manifest" href="./manifest.webmanifest">
-<link rel="apple-touch-icon" href="./apple-touch-icon.png">
-<link rel="icon" type="image/png" href="./icon-192.png">
-<title>Readout</title>
+<title>Readout · 2026.10.12 Fix</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..800&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400..600&display=swap">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{height:100%}body{margin:0;font:14px system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
-<script>window.__READOUT_PWA__=true;</script>
 
 <style>
 /* Layout: full-bleed camera viewfinder; fixed top bar; answer sheet (question, parts with answers, sticky player, steps, saved) and shutter dock stacked over the lower viewfinder */
@@ -383,6 +379,16 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
         <div class="seg" id="holdSeg"></div>
       </div>
 
+      <h3 class="sec">Study context</h3>
+      <div class="field">
+        <label for="studyMode">What are you working on?</label>
+        <select class="input" id="studyMode">
+          <option value="practice">Practice, past, or released material</option>
+          <option value="active">Currently active graded assessment</option>
+        </select>
+        <p>Select the correct context. A title such as “Midterm” alone does not tell Claude whether a sheet is currently graded. For active assessments, Readout provides hints and teaching rather than answer keys.</p>
+      </div>
+
       <h3 class="sec">Answers</h3>
       <div class="field" id="modelField" hidden>
         <span class="label">Model</span>
@@ -418,34 +424,18 @@ window.MathJax = {
   options: { enableMenu: false },
   startup: {
     typeset: false,
-    ready() {
-      MathJax.startup.defaultReady();
-      MathJax.startup.promise.then(() => { if (window.__readoutMath) window.__readoutMath(); });
+    pageReady() {
+      return MathJax.startup.defaultPageReady().then(() => {
+        if (typeof window.__readoutMath === "function") window.__readoutMath();
+      });
     }
   }
 };
 </script>
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" async></script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js" defer onerror="window.__readoutMathLoadFailure=true;var t=document.createElement('script');t.src='https://unpkg.com/mathjax@3.2.2/es5/tex-svg.js';t.defer=true;t.onerror=function(){window.__readoutMathLoadFailure=true;};document.head.appendChild(t);"></script>
 <script>
 (() => {
   "use strict";
-  // Safety net: guarantee every Anthropic request includes max_tokens.
-  const __origFetch = window.fetch ? window.fetch.bind(window) : null;
-  if (__origFetch) {
-    window.fetch = function (input, init) {
-      try {
-        const url = typeof input === "string" ? input : (input && input.url) || "";
-        if (url.indexOf("api.anthropic.com") >= 0 && init && typeof init.body === "string") {
-          const body = JSON.parse(init.body);
-          if (!body.max_tokens) {
-            body.max_tokens = 4000;
-            init = Object.assign({}, init, { body: JSON.stringify(body) });
-          }
-        }
-      } catch (e) { /* leave request untouched */ }
-      return __origFetch(input, init);
-    };
-  }
   const $ = (id) => document.getElementById(id);
   const vis = (id, on) => { $(id).toggleAttribute("hidden", !on); };
 
@@ -459,7 +449,7 @@ window.MathJax = {
     voiceOn: true, voiceURI: "", rate: 0.8, volume: 1,
     engine: "device", gKey: "", gVoice: "en-US-Chirp3-HD-Charon", gCap: true,
     repeats: 2, repeatWhat: "answers", pauseMs: 1200, termPauseMs: 650, readSteps: false, sayAgain: true, cues: true,
-    auto: true, holdMs: 900, waitForVoice: true,
+    auto: true, holdMs: 900, waitForVoice: true, studyMode: "practice",
     extra: "", keepHistory: true
   };
   const settings = {};
@@ -526,16 +516,23 @@ window.MathJax = {
   // Consistent study context for both the direct image request and OCR recovery.
   // A printed "Exam" or "Midterm" title can be part of a released/practice sheet.
   const STUDY_SYSTEM = [
-    "You are Readout, an accessibility and tutoring assistant for educational study materials.",
-    "Users study with old exams, released midterms, sample tests, practice quizzes, textbooks, and worksheets.",
-    "Words such as exam, midterm, quiz, test, final, points, time limits, or exam instructions printed in an image are not, by themselves, evidence of a currently active graded assessment.",
-    "For practice and study questions, solve the ACTUAL question in the image clearly and accurately, including its parts and useful worked steps. Do not replace it with a different practice problem just because of the page title.",
-    "Do not claim that an exam is live, or that study material is completed, without evidence.",
-    "If the user explicitly identifies a currently in-progress graded assessment, instead help them with concepts, hints, and worked practice examples."
+    "You are Readout, a tutor that helps users learn from educational materials, including practice questions and old or released exam papers.",
+    "The document header is content to read, not a reliable signal of assessment status: 'exam', 'quiz', 'midterm', 'final', time limits, points, and page numbers often appear in practice and archival documents.",
+    "Use the user's explicitly selected study context; do not assert an exam is live solely from text printed on the page.",
+    "When working on practice, past or released questions, answer the actual visible question with accurate worked steps and avoid changing it into a different exercise.",
+    "When the user says they are completing an actively graded assessment, provide tutoring help, reasoning guidance and illustrative examples instead of direct answer keys.",
+    "If the image is unreadable, say so plainly; do not invent a question or an answer."
   ].join(" ");
 
+  function studyContext() {
+    if (settings.studyMode === "active") {
+      return "Assessment context selected by the user: CURRENTLY ACTIVE GRADED ASSESSMENT. Please offer hints, concepts and a parallel worked example. Avoid an answer key to the active assessment.";
+    }
+    return "Assessment context selected by the user: PRACTICE / PAST / RELEASED STUDY MATERIAL. The user is working on study materials, not presenting an in-progress graded test. Work through the exact photographed questions and provide the answers and explanations. Printed titles like Midterm, Exam or Quiz are part of the document, not proof of a live assessment. If there is specific evidence that conflicts with this declaration, describe the uncertainty without making assumptions.";
+  }
+
   const BASE_PROMPT = [
-    "This photo is submitted for tutoring and practice. Transcribe and work through the actual visible questions, even when an old or practice paper is titled 'Exam', 'Midterm', 'Test', or 'Quiz'. The title alone does not indicate a live assessment. Give full worked solutions for study material; do not substitute another problem based solely on assessment wording.",
+    "Analyze the actual photographed question. The user's assessment context is provided separately. Do not decide assessment status using only a printed heading (Exam, Midterm, Test, Quiz). For practice materials, explain and solve the original problem; do not silently substitute another question.",
     "The image is a photo of something with text: a worksheet, a textbook page, a screen, a whiteboard, a sign, or a label.",
     "The person listens to your reply read aloud and writes it down by hand, so the spoken text must be easy to copy.",
     "",
@@ -573,7 +570,7 @@ window.MathJax = {
     const extra = String(settings.extra || "").trim().slice(0, 600);
     const lines = BASE_PROMPT.slice();
     if (extra) lines.push("", "Standing preferences from the person. Follow them unless they break the reply format:", extra);
-    return lines.join("\n");
+    return [studyContext(), ...lines].join("\n");
   }
 
   // ---------- environment ----------
@@ -639,18 +636,47 @@ window.MathJax = {
     toastTimer = setTimeout(() => { t.hidden = true; }, ms || 3800);
   }
 
-  // ---------- math ----------
+  // ---------- math: clear old elements BEFORE changing DOM; typeset serially ----------
   const pendingMath = new Set();
-  function typeset(el) {
+  let mathChain = Promise.resolve();
+  let mathTimer = 0;
+  let mathLoadingWarning = false;
+  function clearMath(els) {
     const MJ = window.MathJax;
-    if (MJ && typeof MJ.typesetPromise === "function") {
-      try { if (MJ.typesetClear) MJ.typesetClear([el]); } catch (e) { /* ignore */ }
-      MJ.typesetPromise([el]).catch(() => {});
-    } else {
-      pendingMath.add(el);
+    if (MJ && typeof MJ.typesetClear === "function") {
+      try { MJ.typesetClear(els); } catch (e) { /* removed nodes or startup not ready */ }
     }
   }
-  window.__readoutMath = () => { pendingMath.forEach((el) => typeset(el)); pendingMath.clear(); };
+  function flushMath() {
+    if (mathTimer) { clearTimeout(mathTimer); mathTimer = 0; }
+    const MJ = window.MathJax;
+    if (!MJ || typeof MJ.typesetPromise !== "function") {
+      if (window.__readoutMathLoadFailure && !mathLoadingWarning) {
+        mathLoadingWarning = true;
+        toast("Math library could not load. Check your connection or content blocker.", "warn", 7000);
+      }
+      return;
+    }
+    const els = [...pendingMath].filter((el) => el && el.isConnected);
+    pendingMath.clear();
+    if (!els.length) return;
+    mathChain = mathChain.catch(() => {}).then(async () => {
+      // Delayed MathJax loading and updates may overlap; never typeset a detached node.
+      const live = els.filter((el) => el.isConnected);
+      if (!live.length) return;
+      await MJ.typesetPromise(live);
+    }).catch((e) => {
+      if (!mathLoadingWarning) {
+        mathLoadingWarning = true;
+        toast("Some equations could not be formatted. Showing original LaTeX.", "warn", 6500);
+      }
+    });
+  }
+  function typeset(el) {
+    pendingMath.add(el);
+    if (!mathTimer) mathTimer = setTimeout(flushMath, 50);
+  }
+  window.__readoutMath = flushMath;
 
   // ---------- phone voices ----------
   let voices = [];
@@ -729,6 +755,9 @@ window.MathJax = {
     if (c && c.state !== "running") { try { c.resume(); } catch (e) { /* ignore */ } }
   }
   document.addEventListener("pointerdown", unlock, { capture: true });
+  document.addEventListener("keydown", (e) => {
+    if (e.isTrusted && (e.key === "Enter" || e.key === " ")) unlock();
+  }, { capture: true });
 
   // ---------- text helpers ----------
   // Fallback: turn leftover LaTeX into words, in case a spoken line ever arrives with math code in it.
@@ -809,13 +838,16 @@ window.MathJax = {
     return { first, again: settings.repeatWhat === "all" ? null : again };
   }
 
-    // Wrap bare LaTeX math in \( \) so MathJax renders it even when the reply
-  // isn't in the normal tagged format. Leaves already-delimited math untouched.
+    // Keep already-delimited TeX intact; wrap only UNDELIMITED math expressions,
+  // not entire English sentences (which MathJax would render as broken equations).
   function delimitMath(s) {
-    let t = String(s || "");
-    if (/\\\(|\\\[|\$/.test(t)) return t;                 // already delimited
-    if (!/\\[A-Za-z]+|\^|_/.test(t)) return t;            // no math-ish content
-    return t.replace(/((?:[A-Za-z0-9.,\s=+\-*/()]*)(?:\\[A-Za-z]+|\^|_)(?:[A-Za-z0-9.,\s=+\-*/(){}^_\\]*))/g, (m) => "\\(" + m.trim() + "\\)");
+    const src = String(s || "");
+    const pieces = src.split(/(\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$\$[\s\S]*?\$\$|(?<!\\)\$(?!\$)[^$\n]+\$)/g);
+    return pieces.map((piece, i) => {
+      if (i % 2 === 1) return piece;  // Already inside a math environment
+      return piece.replace(/\\(?:dfrac|tfrac|frac)\s*\{(?:[^{}]|\{[^{}]*\})*\}\s*\{(?:[^{}]|\{[^{}]*\})*\}|\\(?:sqrt|boxed|overline|underline|vec|hat|bar)\s*(?:\[[^\]]*\])?\s*\{(?:[^{}]|\{[^{}]*\})*\}|\\(?:alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|phi|omega|times|cdot|leq|geq|neq|approx|infty|pm|sum|int|lim|sin|cos|tan)\b|\b[A-Za-z0-9]+\s*[_^]\s*(?:\{[^{}]+\}|[A-Za-z0-9]+)/g,
+        (math) => "\\(" + math.trim() + "\\)");
+    }).join("");
   }
 
   // ---------- reply parsing: "TAG: display || spoken" lines ----------
@@ -1059,7 +1091,8 @@ window.MathJax = {
         const my2 = ++reader.id;
         reader.timer = setTimeout(() => { if (my2 === reader.id) step(); }, settings.termPauseMs);
       };
-      if (useGoogle()) { speakGoogle(text, my, finish); if (ci === 1) gPrefetch(chunks); }
+      const googleSelected = useGoogle() || (reader.owner === "googleTest" && CAN_GOOGLE && !!String(settings.gKey || "").trim());
+      if (googleSelected) { speakGoogle(text, my, finish); if (ci === 1 && reader.owner !== "googleTest") gPrefetch(chunks); }
       else speakDevice(text, my, finish);
     };
     step();
@@ -1100,7 +1133,18 @@ window.MathJax = {
     u.volume = settings.volume;
     u.onstart = () => { started = true; };
     u.onend = finish;
-    u.onerror = finish;
+    u.onerror = (ev) => {
+      if (my !== reader.id) return;
+      const reason = String(ev && ev.error || "");
+      if (/not-allowed|audio-busy|synthesis-unavailable|synthesis-failed/i.test(reason)) {
+        blockedNotice();
+      } else if (/interrupted|canceled/i.test(reason)) {
+        // Pausing or skipping cancels utterances intentionally.
+      } else {
+        toast("The device voice failed. Try Test in Settings or choose another voice.", "warn", 6000);
+        rFinish(true);
+      }
+    };
     reader.u = u;
     try { if (s.paused) s.resume(); s.speak(u); } catch (e) { reader.timer = setTimeout(finish, 600); return; }
     const words = text.split(/\s+/).length;
@@ -1108,9 +1152,9 @@ window.MathJax = {
     clearTimeout(reader.guard);
     reader.guard = setTimeout(finish, est * 2 + 3000);
     setTimeout(() => {
-      if (my !== reader.id || started) return;
-      if (!state.unlocked) blockedNotice();
-    }, 2500);
+      if (my !== reader.id || started || reader.state === "paused") return;
+      blockedNotice();
+    }, 3500);
   }
   function rFinish(silent) {
     rHalt();
@@ -1216,6 +1260,7 @@ window.MathJax = {
     if (key === renderKey) return;
     renderKey = key;
     lastHighlight = "x";
+    clearMath([$("qBox"), $("answers"), $("stepsList")]);
     const qb = $("qBox");
     qb.hidden = !(e.q && e.q.d);
     $("qText").textContent = e.q ? e.q.d : "";
@@ -1251,7 +1296,7 @@ window.MathJax = {
     });
     $("stepsSummary").textContent = "Steps (" + count + ")";
     $("stepsBox").hidden = !count;
-    if (final) { typeset($("qBox")); typeset(box); if (count) typeset(sl); }
+    if (final) typeset($("sheet"));
     paintPlayer();
   }
   function beginAnswer() {
@@ -1614,7 +1659,7 @@ window.MathJax = {
   }
   function buildCleanedPrompt(ocrText) {
     return buildPrompt() +
-      "\n\nThe photo was difficult to read, so here is an on-device OCR transcription. Titles and assessment wording are intentionally preserved. Use the text and any attached figures to answer the ACTUAL question as study material, including worked steps. An 'Exam' or 'Midterm' title alone is not evidence of an active assessment:\n---\n" +
+      "\n\nThe photo was difficult to read, so here is an on-device OCR transcription. Titles and assessment wording are intentionally preserved. Use the text and any attached figures according to the user-selected study context; an 'Exam' or 'Midterm' heading by itself is not evidence of an active assessment:\n---\n" +
       ocrText +
       "\n---\n" +
       "Any attached image is a crop intended to show a figure or diagram from the same page. Keep the response in the required tagged format.";
@@ -1711,27 +1756,10 @@ window.MathJax = {
     beginAnswer();
 
     const t0 = performance.now();
-    let readingStarted = false;
     const owner = "run" + run;
     const onUpdate = (text, done) => {
       const pd = parseReply(text, done);
       if (pd.found) { renderEntry(pd, done); if (!done) setTag("working", "Answering"); }
-      const ps = done ? pd : parseReply(text.slice(0, text.lastIndexOf("\n") + 1), false);
-      if (ps.found) {
-        state.current = entryFrom(ps);
-        if (settings.voiceOn) {
-          const plan = speechPlan(ps, settings.readSteps);
-          if (plan.first.length) {
-            if (!readingStarted) {
-              readingStarted = true;
-              state.playerReady = true;
-              rStart(plan.first, plan.again, done, settings.repeats, owner);
-            } else if (reader.owner === owner) {
-              rUpdate(plan.first, plan.again, done);
-            }
-          }
-        }
-      }
       return pd;
     };
 
@@ -1773,7 +1801,7 @@ window.MathJax = {
           const visibleText = trimmed.length > 1400 ? trimmed.slice(0, 1400) + "…" : trimmed;
           setTag("study", "Study guidance");
           $("metaText").textContent = elapsed + " s · " + by;
-          showQuiet(visibleText + "\n\nReadout stopped rather than repeatedly scanning the same photo. For a practice or released exam, make sure the question is readable and check any custom instructions in Settings that might suggest this is a live graded assessment.");
+          showQuiet(visibleText + "\n\nReadout stopped instead of repeatedly rescanning. In Settings, verify the study context and extra instructions are accurate. Model refusals cannot always be changed by this app.");
           state.playerReady = false;
           state.refusalDetected = false;
           paintPlayer();
@@ -1808,12 +1836,11 @@ window.MathJax = {
             cleanPrompt = buildCleanedPrompt(ocr.text);
             toast("Retrying once with extracted text" + (ocr.blobs.length ? " + diagram" : "") + "…", null, 2400);
           } else {
-            currentPrompt = buildPrompt() + "\n\nFormatting reminder: respond with the required Q, PART, W, and A tags. For a practice or past exam, answer the question shown, regardless of the document title.";
+            currentPrompt = buildPrompt() + "\n\nFormatting reminder: use Q, PART, W, and A tags where possible. Use the selected study context; never classify a document solely from its printed heading.";
             toast("Retrying once with a clearer response format…", null, 2400);
           }
           state.refusalDetected = false;
           rStop();
-          readingStarted = false;
           renderKey = "";
           beginAnswer();
           continue;
@@ -1830,11 +1857,14 @@ window.MathJax = {
         setTag("answer", "Answer");
         $("metaText").textContent = secs + " s · " + by + (attempt > 0 ? " · retry " + attempt : "");
         state.playerReady = true;
-        if (reader.owner === owner) {
-          const plan = speechPlan(state.current, settings.readSteps);
-          rUpdate(plan.first, plan.again, true);
-        }
         paintPlayer();
+        // Never speak streamed fragments: a partial answer can be discarded, and
+        // an async API request may lose the user gesture needed for mobile TTS.
+        if (settings.voiceOn && state.unlocked && document.visibilityState !== "hidden") {
+          playCurrent(settings.repeats);
+        } else if (settings.voiceOn) {
+          toast("Answer ready — tap play to hear it.", null, 5000);
+        }
       } else {
         setTag("", "No text");
         $("metaText").textContent = secs + " s · " + by;
@@ -2129,6 +2159,7 @@ window.MathJax = {
     $("cuesCheck").checked = settings.cues;
     $("keepCheck").checked = settings.keepHistory;
     $("extra").value = settings.extra || "";
+    $("studyMode").value = settings.studyMode === "active" ? "active" : "practice";
     paintRanges();
     paintUsage();
     paintEngine();
@@ -2290,7 +2321,7 @@ window.MathJax = {
     try {
       await gSynth(line);
       setGStatus("Key works. This voice will read your answers.", "ok");
-      rStart([{ t: line, k: "x", i: null }], null, true, 1, "test");
+      rStart([{ t: line, k: "x", i: null }], null, true, 1, "googleTest");
     } catch (e) {
       setGStatus(gErrorText(e), "bad");
     }
@@ -2315,6 +2346,10 @@ window.MathJax = {
   $("volume").addEventListener("input", (e) => { save("volume", Number(e.target.value)); paintRanges(); });
   $("voiceSelect").addEventListener("change", (e) => save("voiceURI", e.target.value));
   $("extra").addEventListener("change", (e) => save("extra", e.target.value.trim()));
+  $("studyMode").addEventListener("change", (e) => {
+    save("studyMode", e.target.value === "active" ? "active" : "practice");
+    toast(settings.studyMode === "practice" ? "Study mode: practice / past exams." : "Study mode: active graded assessment (hints only).", null, 4000);
+  });
   $("testVoice").addEventListener("click", () => {
     unlock();
     rStart([{ t: "This is how your answers will sound.", k: "x", i: null }, { t: "x equals negative 3 over 4.", k: "x", i: null }], null, true, 1, "test");
@@ -2365,8 +2400,15 @@ window.MathJax = {
     startCamera();
     if (!settings.apiKey.trim()) toast("Open Settings and paste your Anthropic API key to start.", null, 6000);
   }
-  if (CAN_LIVE && "serviceWorker" in navigator && window.__READOUT_PWA__) {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+  // This GitHub-paste version is self-contained. An older Readout service worker
+  // may otherwise keep serving an obsolete index.html after a GitHub commit.
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((reg) => {
+      if (reg.active && /(?:^|\/)sw\.js(?:$|\?)/.test(new URL(reg.active.scriptURL).pathname)) reg.unregister().catch(() => {});
+    })).catch(() => {});
+  }
+  if ("caches" in window) {
+    caches.keys().then((keys) => keys.filter((k) => k.startsWith("readout-shell-")).forEach((k) => caches.delete(k))).catch(() => {});
   }
 })();
 </script>
