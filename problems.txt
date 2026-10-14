@@ -1,0 +1,3 @@
+/Users/runner/work/readout/readout/ios/Readout/Services/Camera.swift:128:23: warning: capture of 'self' with non-sendable type 'Camera' in a '@Sendable' closure
+2026-10-14 16:37:57.762 appintentsmetadataprocessor[2741:12169] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+warning: ONLY_ACTIVE_ARCH=YES requested with multiple ARCHS and no active architecture could be computed; building for all applicable architectures (in target 'Readout' from project 'Readout')
