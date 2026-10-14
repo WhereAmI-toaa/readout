@@ -1,0 +1,122 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<style>
+:root {
+  --text: #ECE9E2; --muted: #979EA9; --amber: #F2B53A; --line: #2C313A;
+  --wash: rgba(242, 181, 58, 0.11); --soft: color-mix(in srgb, #ECE9E2 82%, #979EA9);
+  color-scheme: dark;
+}
+html, body { margin: 0; background: transparent; color: var(--text); -webkit-text-size-adjust: 100%; }
+body { font: 15px -apple-system, system-ui, sans-serif; padding: 2px 16px 16px; -webkit-tap-highlight-color: transparent; }
+.label { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.block { padding: 6px 8px; margin: 0 -8px 4px; border-radius: 10px; transition: background .2s; }
+.block.reading { background: var(--wash); }
+.qtext { margin: 3px 0 0; font-family: ui-serif, "New York", Georgia, serif; font-size: 16px; line-height: 1.45; color: var(--soft); }
+.ptext { font-family: ui-serif, "New York", Georgia, serif; font-size: 15.5px; line-height: 1.4; color: var(--soft); }
+.plabel { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; font-weight: 600; color: var(--amber); margin-right: 5px; }
+.pans { margin-top: 3px; font-family: ui-serif, "New York", Georgia, serif; font-size: 21px; line-height: 1.36; font-weight: 500; overflow-x: auto; }
+.pending { font: 500 14px -apple-system, system-ui, sans-serif; color: var(--muted); }
+.streaming .pans { color: color-mix(in srgb, #ECE9E2 72%, #979EA9); }
+.quiet { font-family: ui-serif, "New York", Georgia, serif; font-size: 17px; line-height: 1.4; color: var(--muted); margin: 6px 0; }
+.working { display: flex; align-items: center; gap: 10px; color: var(--muted); font-weight: 500; margin: 8px 0; }
+.working::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--amber); border-right-color: transparent; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+details { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
+summary { font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "+ "; font-family: ui-monospace, monospace; color: var(--amber); }
+details[open] > summary::before { content: "\2212  "; }
+.slabel { margin-top: 8px; font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--amber); }
+ol { margin: 6px 0 2px; padding-left: 22px; font-family: ui-serif, "New York", Georgia, serif; font-size: 16px; line-height: 1.45; }
+li { margin: 4px 0; }
+li::marker { color: var(--amber); font-family: ui-monospace, monospace; font-size: 13px; }
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; max-width: 100%; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [["\\(", "\\)"], ["$", "$"]], displayMath: [["\\[", "\\]"], ["$$", "$$"]], processEscapes: true },
+  svg: { fontCache: "global" },
+  options: { enableMenu: false },
+  startup: {
+    typeset: false,
+    ready() {
+      MathJax.startup.defaultReady();
+      MathJax.startup.promise.then(() => { window.__mj = true; if (window.__wantTypeset) typeset(); });
+    }
+  }
+};
+</script>
+<script src="tex-svg.js" async></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const root = document.getElementById("root");
+let lastFinal = false;
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function typeset() {
+  if (!window.__mj) { window.__wantTypeset = true; return; }
+  window.__wantTypeset = false;
+  try { MathJax.typesetClear([root]); } catch (e) {}
+  MathJax.typesetPromise([root]).catch(() => {});
+}
+function render(d) {
+  root.innerHTML = "";
+  lastFinal = !!d.final;
+  if (d.working) { root.appendChild(el("div", "working", "Reading the text")); return; }
+  if (d.quiet) { root.appendChild(el("p", "quiet", d.quiet)); return; }
+  const e = d.entry || { parts: [] };
+  if (e.q) {
+    const qb = el("div", "block"); qb.dataset.i = "-1";
+    qb.appendChild(el("div", "label", "Question"));
+    qb.appendChild(el("p", "qtext", e.q.d));
+    root.appendChild(qb);
+  }
+  const wrap = el("div", d.final ? "" : "streaming");
+  (e.parts || []).forEach((p, i) => {
+    const b = el("div", "block"); b.dataset.i = String(i);
+    if (p.label || p.p) {
+      const pt = el("div", "ptext");
+      if (p.label) pt.appendChild(el("span", "plabel", p.label + "."));
+      if (p.p) pt.appendChild(document.createTextNode(p.p.d));
+      b.appendChild(pt);
+    }
+    b.appendChild(p.a ? el("div", "pans", p.a.d) : el("div", "pans pending", d.final ? "No answer" : "Solving"));
+    wrap.appendChild(b);
+  });
+  root.appendChild(wrap);
+  const withW = (e.parts || []).filter(p => p.w && p.w.length);
+  if (withW.length) {
+    const det = el("details");
+    let n = 0;
+    const body = el("div");
+    (e.parts || []).forEach(p => {
+      if (!p.w || !p.w.length) return;
+      if (e.parts.length > 1 && p.label) body.appendChild(el("div", "slabel", (/^\d+$/.test(p.label) ? "Number " : "Part ") + p.label));
+      const ol = el("ol");
+      p.w.forEach(w => { ol.appendChild(el("li", null, w.d)); n++; });
+      body.appendChild(ol);
+    });
+    det.appendChild(el("summary", null, "Steps (" + n + ")"));
+    det.appendChild(body);
+    det.addEventListener("toggle", () => { if (det.open) typeset(); });
+    root.appendChild(det);
+  }
+  if (d.final) typeset();
+  highlight(window.__hl);
+}
+function highlight(i) {
+  window.__hl = i;
+  document.querySelectorAll(".block").forEach(b => {
+    const on = i !== null && i !== undefined && b.dataset.i === String(i);
+    b.classList.toggle("reading", on);
+    if (on) { try { b.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (e) {} }
+  });
+}
+</script>
+</body>
+</html>

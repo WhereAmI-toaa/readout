@@ -1,0 +1,68 @@
+name: iOS build
+
+on:
+  push:
+    branches: [main]
+    paths: ["ios/**", ".github/workflows/ios.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Build for the iPhone simulator
+        id: build
+        run: |
+          set -o pipefail
+          mkdir -p out
+          cd ios
+          xcodebuild -project Readout.xcodeproj -target Readout -sdk iphonesimulator -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO SYMROOT="$PWD/build" build > ../out/build.log 2>&1 \
+            && echo "BUILD OK" > ../out/status.txt || { echo "BUILD FAILED" > ../out/status.txt; exit 1; }
+
+      - name: Screenshots in the simulator
+        if: steps.build.outcome == 'success'
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)['devices']
+          phones = [x for k, v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')]
+          pro = [x for x in phones if 'Pro' in x['name'] and 'Max' not in x['name']]
+          print((pro or phones)[-1]['udid'])
+          ")
+          echo "Simulator: $UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time 9:41 --batteryLevel 100 --cellularBars 4 || true
+          xcrun simctl install "$UDID" ios/build/Debug-iphonesimulator/Readout.app
+          xcrun simctl launch "$UDID" io.github.whereami-toaa.readout -ReadoutDemo YES
+          sleep 15
+          xcrun simctl io "$UDID" screenshot out/main.png
+          xcrun simctl terminate "$UDID" io.github.whereami-toaa.readout || true
+          xcrun simctl launch "$UDID" io.github.whereami-toaa.readout -ReadoutDemo YES -ReadoutDemoSettings YES
+          sleep 10
+          xcrun simctl io "$UDID" screenshot out/settings.png
+          xcrun simctl spawn "$UDID" log show --last 2m --predicate 'process == "Readout"' --style compact > out/app.log 2>&1 || true
+
+      - name: Publish results to the ci-shots branch
+        if: always()
+        run: |
+          mkdir -p out
+          [ -f out/build.log ] && grep -E "error:|warning:" out/build.log | sort -u | head -400 > out/problems.txt || true
+          [ -f out/build.log ] && tail -150 out/build.log > out/build-tail.txt && rm out/build.log || true
+          echo "${GITHUB_SHA}" > out/commit.txt
+          cd out
+          git init -q
+          git checkout -q -b ci-shots
+          git add -A
+          git -c user.name="ci" -c user.email="ci@users.noreply.github.com" commit -q -m "CI results for ${GITHUB_SHA}"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" ci-shots
