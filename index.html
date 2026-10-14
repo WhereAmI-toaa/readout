@@ -10,187 +10,219 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Readout">
 <meta name="description" content="Point your camera at a question and hear the answer.">
-<title>Readout · 2026.10.12 Layout + Math Fix</title>
+<title>Readout · 2026.10.14 Pro</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..800&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400..600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,400..800&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400..600&display=swap">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html,body{height:100%}body{margin:0;font:14px system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 
 <style>
-/* Layout: full-bleed camera viewfinder; fixed top bar; answer sheet (question, parts with answers, sticky player, steps, saved) and shutter dock stacked over the lower viewfinder */
+/* Layout & Concentric Design Tokens */
 :root {
   --ink: #0D0F12;
-  --panel: #15181D;
-  --panel-2: #1E2228;
-  --line: #2C313A;
-  --text: #ECE9E2;
-  --muted: #979EA9;
+  --panel: #14171C;
+  --panel-2: #1C2026;
+  --panel-3: #242932;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --text: #F2EFE9;
+  --muted: #949BA6;
   --amber: #F2B53A;
   --amber-ink: #1B1406;
-  --amber-wash: rgba(242, 181, 58, 0.10);
+  --amber-wash: rgba(242, 181, 58, 0.11);
   --danger: #FF8A78;
-  --scrim: rgba(13, 15, 18, 0.82);
+  --scrim: rgba(13, 15, 18, 0.78);
+  
+  /* Concentric Radii System: Outer (24px) - Padding (8px) = Inner (16px) */
+  --r-sheet: 24px;
+  --r-card: 16px;
+  --r-control: 12px;
+  --r-pill: 999px;
+
   --f-ui: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --f-answer: "Source Serif 4", ui-serif, Georgia, "Times New Roman", serif;
   --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   color-scheme: dark;
 }
+*, *::before, *::after { box-sizing: border-box; }
 html, body { background: var(--ink); color: var(--text); }
-body { font-family: var(--f-ui); -webkit-font-smoothing: antialiased; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+body { font-family: var(--f-ui); -webkit-font-smoothing: antialiased; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; user-select: none; }
+.qtext, .ptext, .pans, .steps ol, .now { user-select: text; }
 button, input, select, textarea { font: inherit; color: inherit; }
-button { cursor: pointer; }
+button { cursor: pointer; touch-action: manipulation; }
 :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 
 .app { position: fixed; inset: 0; overflow: hidden; background: var(--ink); }
 
 /* Viewfinder */
-.finder { position: absolute; inset: 0; background: radial-gradient(120% 80% at 50% 30%, var(--panel-2), var(--ink) 70%); }
-.finder video, .finder img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: 100%; object-fit: cover; }
-.finder img { opacity: 0.55; }
-.placeholder { position: absolute; left: 50%; width: min(68%, 360px); top: 31%; transform: translate(-50%, -50%); display: grid; gap: 10px; justify-items: center; text-align: center; }
-.ph-title { margin: 0; font-size: 26px; font-weight: 700; font-stretch: 85%; letter-spacing: -0.01em; text-wrap: balance; }
-.ph-sub { margin: 0; max-width: 34ch; color: var(--muted); font-size: 15px; line-height: 1.45; text-wrap: balance; }
-.ph-btn { margin-top: 6px; border: 1px solid var(--amber); background: transparent; color: var(--amber); border-radius: 999px; padding: 9px 18px; font-weight: 600; }
+.finder { position: absolute; inset: 0; background: radial-gradient(120% 80% at 50% 28%, var(--panel-2), var(--ink) 72%); }
+.finder video, .finder img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.finder img { opacity: 0.6; filter: contrast(1.04); }
+.placeholder { position: absolute; left: 50%; width: min(74%, 360px); top: 30%; transform: translate(-50%, -50%); display: grid; gap: 10px; justify-items: center; text-align: center; }
+.ph-title { margin: 0; font-size: 25px; font-weight: 700; font-stretch: 85%; letter-spacing: -0.01em; text-wrap: balance; }
+.ph-sub { margin: 0; max-width: 34ch; color: var(--muted); font-size: 14.5px; line-height: 1.45; text-wrap: balance; }
+.ph-btn { margin-top: 6px; border: 1px solid var(--amber); background: var(--amber-wash); color: var(--amber); border-radius: var(--r-pill); padding: 9px 18px; font-weight: 600; transition: transform .15s; }
+.ph-btn:active { transform: scale(0.96); }
 
-.brackets { position: absolute; left: 50%; top: 31%; width: min(78%, 420px); aspect-ratio: 4 / 3; max-width: 100%; transform: translate(-50%, -50%); pointer-events: none; transition: opacity .3s; }
-.brackets i { position: absolute; width: 26px; height: 26px; border-color: var(--amber); border-style: solid; border-width: 0; }
-.brackets i:nth-child(1) { left: 0; top: 0; border-left-width: 3px; border-top-width: 3px; border-top-left-radius: 6px; }
-.brackets i:nth-child(2) { right: 0; top: 0; border-right-width: 3px; border-top-width: 3px; border-top-right-radius: 6px; }
-.brackets i:nth-child(3) { left: 0; bottom: 0; border-left-width: 3px; border-bottom-width: 3px; border-bottom-left-radius: 6px; }
-.brackets i:nth-child(4) { right: 0; bottom: 0; border-right-width: 3px; border-bottom-width: 3px; border-bottom-right-radius: 6px; }
+/* Focus Reticle & Brackets */
+.focus-ring { position: absolute; width: 56px; height: 56px; border: 1.5px solid var(--amber); border-radius: 50%; transform: translate(-50%, -50%) scale(1.3); opacity: 0; pointer-events: none; transition: transform .25s ease-out, opacity .25s ease; }
+.focus-ring.active { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+
+.brackets { position: absolute; left: 50%; top: 29%; width: min(82%, 440px); aspect-ratio: 4 / 3; max-width: 100%; transform: translate(-50%, -50%); pointer-events: none; transition: opacity .3s, transform .25s; }
+.brackets i { position: absolute; width: 26px; height: 26px; border-color: var(--amber); border-style: solid; border-width: 0; transition: border-color .25s; }
+.brackets i:nth-child(1) { left: 0; top: 0; border-left-width: 3px; border-top-width: 3px; border-top-left-radius: 8px; }
+.brackets i:nth-child(2) { right: 0; top: 0; border-right-width: 3px; border-top-width: 3px; border-top-right-radius: 8px; }
+.brackets i:nth-child(3) { left: 0; bottom: 0; border-left-width: 3px; border-bottom-width: 3px; border-bottom-left-radius: 8px; }
+.brackets i:nth-child(4) { right: 0; bottom: 0; border-right-width: 3px; border-bottom-width: 3px; border-bottom-right-radius: 8px; }
 .brackets.locked i { border-color: var(--muted); }
 .brackets.thinking { animation: pulse 1.1s ease-in-out infinite; }
-.brackets.flash { animation: flash .35s ease-out; }
+.brackets.flash { animation: flash .32s ease-out; }
 @keyframes pulse { 50% { opacity: .35; transform: translate(-50%, -50%) scale(.97); } }
-@keyframes flash { 0% { transform: translate(-50%, -50%) scale(1.06); } 100% { transform: translate(-50%, -50%) scale(1); } }
+@keyframes flash { 0% { transform: translate(-50%, -50%) scale(1.05); } 100% { transform: translate(-50%, -50%) scale(1); } }
 
-.hint { position: absolute; left: 16px; right: 16px; top: calc(31% - min(29vw, 158px) - 34px); text-align: center; pointer-events: none; }
-.hint span { display: inline-block; max-width: 100%; padding: 5px 12px; border-radius: 999px; background: var(--scrim); color: var(--text); font-size: 13px; font-weight: 500; letter-spacing: .01em; }
+.vf-controls { position: absolute; left: 16px; right: 16px; top: calc(29% - min(30.5vw, 165px) - 38px); display: flex; justify-content: center; align-items: center; gap: 8px; pointer-events: none; }
+.hintSpan { display: inline-block; max-width: 100%; padding: 5px 13px; border-radius: var(--r-pill); background: var(--scrim); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--line); color: var(--text); font-size: 12.5px; font-weight: 500; letter-spacing: .01em; }
+.zoom-pill { pointer-events: auto; padding: 4px 10px; border-radius: var(--r-pill); background: var(--scrim); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--line); color: var(--amber); font-family: var(--f-mono); font-size: 12px; font-weight: 600; }
 
 /* Top bar */
-.bar { position: absolute; top: 0; left: 0; right: 0; padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: linear-gradient(to bottom, var(--scrim), transparent); z-index: 3; }
-.mark { display: flex; align-items: center; gap: 8px; font-weight: 750; font-stretch: 80%; font-size: 19px; letter-spacing: .02em; text-transform: uppercase; }
+.bar { position: absolute; top: 0; left: 0; right: 0; padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: linear-gradient(to bottom, var(--scrim) 20%, transparent); z-index: 3; }
+.mark { display: flex; align-items: center; gap: 8px; font-weight: 750; font-stretch: 80%; font-size: 18px; letter-spacing: .03em; text-transform: uppercase; }
 .mark svg { width: 18px; height: 18px; color: var(--amber); }
 .bar-actions { display: flex; align-items: center; gap: 8px; }
-.chip { border: 1px solid var(--line); background: var(--scrim); border-radius: 999px; padding: 5px 11px; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.chip { border: 1px solid var(--line-strong); background: var(--scrim); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-radius: var(--r-pill); padding: 6px 12px; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); transition: all .15s; }
 button.chip[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
-.icon-btn { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: var(--scrim); color: var(--text); padding: 0; }
-.icon-btn svg { width: 19px; height: 19px; }
-.icon-btn[aria-pressed="true"].torch { color: var(--amber); border-color: var(--amber); }
+.icon-btn { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line-strong); background: var(--scrim); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); color: var(--text); padding: 0; transition: transform .12s, background .15s; }
+.icon-btn:active { transform: scale(0.92); }
+.icon-btn svg { width: 18px; height: 18px; }
+.icon-btn[aria-pressed="true"].torch { color: var(--amber); border-color: var(--amber); background: var(--amber-wash); }
 .icon-btn.muted { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, transparent); }
 .icon-btn.lg { width: 50px; height: 50px; }
 .icon-btn.lg svg { width: 22px; height: 22px; }
 
 /* Bottom stack */
-.bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 16px calc(env(safe-area-inset-bottom, 0px) + 14px); display: flex; flex-direction: column; gap: 14px; z-index: 2; pointer-events: none; }
+.bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 12px calc(env(safe-area-inset-bottom, 0px) + 12px); display: flex; flex-direction: column; gap: 12px; z-index: 2; pointer-events: none; max-width: 640px; margin: 0 auto; }
 .bottom > * { pointer-events: auto; }
-.toast { align-self: stretch; max-width: 100%; padding: 10px 14px; border-radius: 14px; background: color-mix(in srgb, var(--panel-2) 94%, transparent); border: 1px solid var(--line); font-size: 13.5px; line-height: 1.4; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
-.toast.warn { border-color: color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger); background: color-mix(in srgb, var(--panel-2) 88%, rgba(255,138,120,.08)); }
+.toast { align-self: center; width: fit-content; max-width: 94%; padding: 9px 15px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--panel-2) 95%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--line-strong); font-size: 13px; font-weight: 500; line-height: 1.35; text-align: center; box-shadow: 0 10px 28px rgba(0,0,0,.32); }
+.toast.warn { border-color: color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger); background: color-mix(in srgb, var(--panel-2) 90%, rgba(255,138,120,.1)); }
 
-.sheet { position: relative; max-height: 52%; max-height: 52dvh; overflow-y: auto; overscroll-behavior: contain; background: color-mix(in srgb, var(--panel) 96%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,.06); border-radius: 22px; padding: 10px 14px 14px; display: grid; gap: 12px; box-shadow: 0 18px 44px rgba(0,0,0,.28); transition: max-height .25s ease; }
-.sheet.expanded { max-height: 80%; max-height: 80dvh; }
-.grip { justify-self: center; width: 52px; height: 16px; border: 0; background: transparent; padding: 0; position: relative; }
-.grip::after { content: ""; position: absolute; left: 8px; right: 8px; top: 6px; height: 4px; border-radius: 99px; background: color-mix(in srgb, var(--muted) 35%, var(--panel-2)); }
-.meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; padding: 0 2px; }
-.tag { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; padding: 4px 9px; border-radius: 999px; background: var(--panel-2); color: var(--muted); border: 1px solid rgba(255,255,255,.05); }
+/* Answer Sheet (Concentric outer radius: 24px, padding: 8px -> inner cards: 16px) */
+.sheet { position: relative; max-height: 52dvh; overflow-y: auto; overscroll-behavior: contain; background: color-mix(in srgb, var(--panel) 94%, transparent); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--line-strong); border-radius: var(--r-sheet); padding: 8px; display: grid; gap: 8px; box-shadow: 0 20px 50px rgba(0,0,0,.4); transition: max-height .28s cubic-bezier(0.22, 1, 0.36, 1); }
+.sheet.expanded { max-height: 82dvh; }
+.sheet.minimized { max-height: 86px; overflow: hidden; }
+.grip-area { display: flex; align-items: center; justify-content: space-between; padding: 2px 6px 0; cursor: grab; touch-action: none; }
+.grip { width: 44px; height: 14px; border: 0; background: transparent; padding: 0; position: relative; margin: 0 auto; }
+.grip::after { content: ""; position: absolute; left: 4px; right: 4px; top: 5px; height: 4px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--muted) 42%, var(--panel-2)); transition: background .15s; }
+.grip-area:hover .grip::after { background: var(--muted); }
+
+.meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; padding: 0 6px 2px; }
+.tag { font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; padding: 3.5px 9px; border-radius: var(--r-pill); background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); }
 .tag.is-answer { background: var(--amber); color: var(--amber-ink); border-color: transparent; }
-.tag.is-working { color: var(--amber); }
-.tag.is-error { color: var(--danger); }
-.label { display: inline-flex; align-items: center; width: fit-content; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding: 0; }
+.tag.is-working { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 40%, transparent); background: var(--amber-wash); }
+.tag.is-study { color: var(--amber); border-color: var(--amber); }
+.tag.is-error { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+.label { display: inline-flex; align-items: center; width: fit-content; font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 
-.qbox { display: grid; gap: 8px; min-width: 0; padding: 14px; margin: 0; border-radius: 16px; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel-2) 78%, transparent); transition: background .2s, border-color .2s; }
-.qtext { margin: 0; font-family: var(--f-answer); font-size: 16.5px; line-height: 1.52; color: color-mix(in srgb, var(--text) 88%, var(--muted)); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.qbox { display: grid; gap: 6px; min-width: 0; padding: 12px 14px; margin: 0; border-radius: var(--r-card); border: 1px solid var(--line); background: color-mix(in srgb, var(--panel-2) 75%, transparent); transition: background .2s, border-color .2s; }
+.qtext { margin: 0; font-family: var(--f-answer); font-size: 16px; line-height: 1.5; color: color-mix(in srgb, var(--text) 90%, var(--muted)); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .sheet.expanded .qtext, .qbox.reading .qtext { -webkit-line-clamp: unset; display: block; }
-.answers { display: grid; gap: 10px; min-width: 0; }
-.answers.streaming .pans { color: color-mix(in srgb, var(--text) 72%, var(--muted)); }
-.part { display: grid; gap: 10px; min-width: 0; padding: 14px; margin: 0; border-radius: 16px; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel-2) 82%, transparent); transition: background .2s, border-color .2s; }
-.qbox.reading, .part.reading { background: color-mix(in srgb, var(--amber-wash) 80%, var(--panel-2)); border-color: color-mix(in srgb, var(--amber) 30%, var(--line)); }
-.ptext { font-family: var(--f-answer); font-size: 16px; line-height: 1.45; color: color-mix(in srgb, var(--text) 82%, var(--muted)); overflow-wrap: anywhere; }
-.plabel { display: inline-flex; align-items: center; justify-content: center; min-width: 1.7em; padding: 2px 7px; border-radius: 999px; font-family: var(--f-mono); font-size: 12px; font-weight: 600; color: var(--amber-ink); background: var(--amber); margin-right: 8px; vertical-align: middle; }
-.pans { font-family: var(--f-answer); font-size: 21px; line-height: 1.4; font-weight: 600; overflow-wrap: anywhere; overflow-x: auto; min-width: 0; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--line) 80%, transparent); }
-.pans.pending { font-family: var(--f-ui); font-size: 14px; font-weight: 500; color: var(--muted); border-top-color: transparent; padding-top: 0; }
-.answers mjx-container[display="true"], .steps mjx-container[display="true"], .qbox mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; max-width: 100%; padding: 4px 0; }
-.qbox mjx-container, .part mjx-container, .steps li mjx-container { font-size: 1em !important; }
-.quiet { margin: 0; font-family: var(--f-answer); font-size: 17px; line-height: 1.45; color: var(--muted); padding: 12px 2px 2px; }
-.working-line { display: flex; align-items: center; gap: 10px; color: var(--muted); font-family: var(--f-ui); font-size: 15px; font-weight: 500; padding: 12px 2px; }
+
+.answers { display: grid; gap: 8px; min-width: 0; }
+.answers.streaming .pans { color: color-mix(in srgb, var(--text) 78%, var(--muted)); }
+.part { display: grid; gap: 8px; min-width: 0; padding: 12px 14px; margin: 0; border-radius: var(--r-card); border: 1px solid var(--line); background: color-mix(in srgb, var(--panel-2) 85%, transparent); transition: background .2s, border-color .2s; }
+.qbox.reading, .part.reading { background: color-mix(in srgb, var(--amber-wash) 85%, var(--panel-2)); border-color: color-mix(in srgb, var(--amber) 42%, var(--line)); }
+.ptext { font-family: var(--f-answer); font-size: 15.5px; line-height: 1.45; color: color-mix(in srgb, var(--text) 84%, var(--muted)); overflow-wrap: anywhere; }
+.plabel { display: inline-flex; align-items: center; justify-content: center; min-width: 1.7em; padding: 1.5px 7px; border-radius: var(--r-pill); font-family: var(--f-mono); font-size: 11.5px; font-weight: 600; color: var(--amber-ink); background: var(--amber); margin-right: 8px; vertical-align: middle; }
+.pans { font-family: var(--f-answer); font-size: 20px; line-height: 1.4; font-weight: 600; overflow-wrap: anywhere; overflow-x: auto; min-width: 0; padding-top: 8px; border-top: 1px solid var(--line); }
+.pans.pending { font-family: var(--f-ui); font-size: 13.5px; font-weight: 500; color: var(--muted); border-top-color: transparent; padding-top: 0; display: flex; align-items: center; gap: 8px; }
+.pans.pending::before { content: ""; width: 10px; height: 10px; border-radius: 50%; border: 1.8px solid var(--amber); border-right-color: transparent; animation: spin .75s linear infinite; }
+
+.answers mjx-container[display="true"], .steps mjx-container[display="true"], .qbox mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; max-width: 100%; padding: 4px 0; margin: 0.2em 0 !important; }
+.qbox mjx-container, .part mjx-container, .steps li mjx-container { font-size: 1.02em !important; }
+.quiet { margin: 0; font-family: var(--f-answer); font-size: 16px; line-height: 1.48; color: var(--muted); padding: 10px 6px 4px; white-space: pre-wrap; }
+.working-line { display: flex; align-items: center; gap: 10px; color: var(--muted); font-family: var(--f-ui); font-size: 14.5px; font-weight: 500; padding: 10px 6px; }
 .working-line::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--amber); border-right-color: transparent; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Player */
-.player { position: sticky; bottom: -14px; z-index: 1; display: grid; gap: 10px; margin: 2px 0 0; padding: 12px; background: color-mix(in srgb, var(--panel-2) 96%, transparent); min-width: 0; border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 10px 24px rgba(0,0,0,.16); }
-.player-status { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: .01em; }
-.now { margin: 0; font-family: var(--f-answer); font-size: 17px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.transport { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+/* Sticky Audio Player */
+.player { position: sticky; bottom: 0; z-index: 1; display: grid; gap: 8px; margin: 0; padding: 10px 12px; background: color-mix(in srgb, var(--panel-2) 96%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); min-width: 0; border: 1px solid var(--line-strong); border-radius: var(--r-card); box-shadow: 0 8px 24px rgba(0,0,0,.22); }
+.player-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.player-status { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+.now { margin: 0; font-family: var(--f-answer); font-size: 15.5px; line-height: 1.42; color: var(--text); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.transport { display: flex; align-items: center; gap: 7px; min-width: 0; flex-wrap: wrap; }
 .transport .grow { flex: 1; min-width: 0; }
-.tbtn { width: 42px; height: 42px; flex: none; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--text); display: grid; place-items: center; padding: 0; }
-.tbtn svg { width: 18px; height: 18px; }
-.tbtn.main { width: 52px; height: 52px; background: var(--amber); border-color: var(--amber); color: var(--amber-ink); }
-.tbtn.main svg { width: 22px; height: 22px; }
-.tbtn:disabled { opacity: .35; cursor: default; }
-.speed { flex: none; height: 36px; padding: 0 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); font-family: var(--f-mono); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.tbtn { width: 40px; height: 40px; flex: none; border-radius: 50%; border: 1px solid var(--line-strong); background: var(--panel); color: var(--text); display: grid; place-items: center; padding: 0; transition: transform .12s, opacity .15s; }
+.tbtn:active:not(:disabled) { transform: scale(0.92); }
+.tbtn svg { width: 17px; height: 17px; }
+.tbtn.main { width: 48px; height: 48px; background: var(--amber); border-color: var(--amber); color: var(--amber-ink); }
+.tbtn.main svg { width: 21px; height: 21px; }
+.tbtn:disabled { opacity: .32; cursor: default; }
+.speed { flex: none; height: 34px; padding: 0 12px; border-radius: var(--r-pill); border: 1px solid var(--line-strong); background: var(--panel); font-family: var(--f-mono); font-size: 12.5px; font-weight: 500; font-variant-numeric: tabular-nums; }
 
-.pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--panel-2); border-radius: 999px; padding: 7px 13px; font-size: 13px; font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); background: var(--panel-2); border-radius: var(--r-pill); padding: 7px 13px; font-size: 13px; font-weight: 600; }
 .pill svg { width: 15px; height: 15px; }
-.pill.danger { color: var(--danger); }
-details { border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; background: color-mix(in srgb, var(--panel-2) 74%, transparent); }
-summary { cursor: pointer; font-size: 12.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); list-style: none; display: flex; align-items: center; gap: 8px; }
+.pill.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--line)); }
+
+details { border: 1px solid var(--line); border-radius: var(--r-card); padding: 10px 14px; background: color-mix(in srgb, var(--panel-2) 72%, transparent); }
+summary { cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); list-style: none; display: flex; align-items: center; gap: 8px; }
 summary::-webkit-details-marker { display: none; }
-summary::before { content: "+"; font-family: var(--f-mono); color: var(--amber); width: 12px; }
-details[open] > summary::before { content: "2"; }
-.steps .slabel { margin-top: 10px; font-family: var(--f-mono); font-size: 12.5px; color: var(--amber); }
-.steps ol { margin: 8px 0 2px; padding-left: 22px; display: grid; gap: 8px; font-family: var(--f-answer); font-size: 16px; line-height: 1.48; }
-.steps li::marker { color: var(--amber); font-family: var(--f-mono); font-size: 13px; }
+summary::before { content: "+"; font-family: var(--f-mono); font-weight: 600; color: var(--amber); width: 12px; }
+details[open] > summary::before { content: "−"; }
+.steps .slabel { margin-top: 10px; font-family: var(--f-mono); font-size: 12px; font-weight: 600; color: var(--amber); }
+.steps ol { margin: 8px 0 2px; padding-left: 22px; display: grid; gap: 8px; font-family: var(--f-answer); font-size: 15.5px; line-height: 1.48; }
+.steps li::marker { color: var(--amber); font-family: var(--f-mono); font-size: 12.5px; }
+
 .history ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
-.history button { width: 100%; text-align: left; display: grid; gap: 4px; border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.history button { width: 100%; text-align: left; display: grid; gap: 4px; border: 1px solid var(--line); background: var(--panel); border-radius: var(--r-control); padding: 10px 12px; min-width: 0; transition: border-color .15s; }
+.history button:hover { border-color: var(--line-strong); }
 .history .h-top { display: flex; justify-content: space-between; gap: 10px; min-width: 0; }
-.history .h-read { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.history .h-time { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
-.history .h-ans { font-family: var(--f-answer); font-size: 15px; overflow-wrap: anywhere; }
+.history .h-read { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.history .h-time { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+.history .h-ans { font-family: var(--f-answer); font-size: 14.5px; overflow-wrap: anywhere; }
 
 /* Dock */
-.dock { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; justify-items: center; }
-.shutter { position: relative; width: 78px; height: 78px; border-radius: 50%; border: 0; background: transparent; padding: 0; display: grid; place-items: center; }
+.dock { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; justify-items: center; padding: 2px 0; }
+.shutter { position: relative; width: 76px; height: 76px; border-radius: 50%; border: 0; background: transparent; padding: 0; display: grid; place-items: center; }
 .shutter svg.ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
-.shutter .track { fill: none; stroke: var(--text); stroke-width: 4; opacity: .9; }
-.shutter .prog { fill: none; stroke: var(--amber); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 226.2; stroke-dashoffset: 226.2; transition: stroke-dashoffset .2s linear; }
-.shutter .core { width: 60px; height: 60px; border-radius: 50%; background: var(--text); display: grid; place-items: center; transition: transform .15s, border-radius .2s, width .2s, height .2s, background .2s; }
-.shutter .core svg { width: 26px; height: 26px; color: var(--ink); }
-.shutter:active .core { transform: scale(.92); }
-.shutter.busy .core { width: 30px; height: 30px; border-radius: 7px; background: var(--amber); }
+.shutter .track { fill: none; stroke: var(--text); stroke-width: 3.8; opacity: .92; }
+.shutter .prog { fill: none; stroke: var(--amber); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 226.2; stroke-dashoffset: 226.2; transition: stroke-dashoffset .18s linear; }
+.shutter .core { width: 58px; height: 58px; border-radius: 50%; background: var(--text); display: grid; place-items: center; transition: transform .15s, border-radius .2s, width .2s, height .2s, background .2s; box-shadow: 0 4px 16px rgba(0,0,0,.35); }
+.shutter .core svg { width: 25px; height: 25px; color: var(--ink); }
+.shutter:active .core { transform: scale(.91); }
+.shutter.busy .core { width: 28px; height: 28px; border-radius: 7px; background: var(--amber); }
 .shutter.busy .core svg { display: none; }
 .shutter.busy .track { stroke: var(--amber); stroke-dasharray: 60 166; animation: spin 1s linear infinite; transform-origin: 50% 50%; }
-.spacer { visibility: hidden; }
+.spacer { visibility: hidden; pointer-events: none; }
 
-/* Settings */
-.settings { position: absolute; inset: 0; z-index: 10; background: rgba(5, 6, 8, .6); display: flex; align-items: flex-end; justify-content: center; }
-.settings-panel { width: 100%; max-width: 560px; max-height: 90%; max-height: 90dvh; overflow-y: auto; overscroll-behavior: contain; background: var(--panel); border: 1px solid var(--line); border-bottom: 0; border-radius: 20px 20px 0 0; padding: 18px 16px calc(env(safe-area-inset-bottom, 0px) + 18px); display: grid; gap: 18px; }
+/* Settings Modal */
+.settings { position: absolute; inset: 0; z-index: 10; background: rgba(5, 6, 8, .68); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; align-items: flex-end; justify-content: center; }
+.settings-panel { width: 100%; max-width: 560px; max-height: 90dvh; overflow-y: auto; overscroll-behavior: contain; background: var(--panel); border: 1px solid var(--line-strong); border-bottom: 0; border-radius: var(--r-sheet) var(--r-sheet) 0 0; padding: 18px 16px calc(env(safe-area-inset-bottom, 0px) + 18px); display: grid; gap: 18px; box-shadow: 0 -16px 48px rgba(0,0,0,.45); }
 .settings-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.settings-head h2 { margin: 0; font-size: 20px; font-weight: 700; font-stretch: 85%; letter-spacing: .01em; }
-.sec { margin: 4px 0 -8px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 12.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--amber); }
+.settings-head h2 { margin: 0; font-size: 19px; font-weight: 700; font-stretch: 85%; letter-spacing: .01em; }
+.sec { margin: 4px 0 -8px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--amber); }
 .field { display: grid; gap: 8px; min-width: 0; }
-.field > label:not(.check), .field > .label, .range-head label { font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.field > label:not(.check), .field > .label, .range-head label { font-size: 11.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .range-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .range-head output { font-family: var(--f-mono); font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; }
-.field p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.field p { margin: 0; color: var(--muted); font-size: 12.8px; line-height: 1.45; }
 .field p a { color: var(--amber); }
 .field p.ok { color: var(--amber); }
 .field p.bad { color: var(--danger); }
-.input { width: 100%; box-sizing: border-box; min-width: 0; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; font-size: 15px; }
-.input.mono { font-family: var(--f-mono); font-size: 13.5px; }
-textarea.input { min-height: 78px; resize: vertical; line-height: 1.4; font-size: 15px; }
+.input { width: 100%; min-width: 0; background: var(--panel-2); border: 1px solid var(--line-strong); border-radius: var(--r-control); padding: 10px 12px; font-size: 14.5px; }
+.input.mono { font-family: var(--f-mono); font-size: 13px; }
+textarea.input { min-height: 76px; resize: vertical; line-height: 1.4; }
 .row { display: flex; gap: 8px; align-items: center; min-width: 0; }
 .row .input { flex: 1; }
-.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line); }
-.seg button { border: 0; background: transparent; border-radius: 9px; padding: 9px 6px; font-size: 14px; font-weight: 600; color: var(--muted); display: grid; gap: 1px; }
-.seg button small { font-size: 11px; font-weight: 500; opacity: .8; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: var(--r-control); background: var(--panel-2); border: 1px solid var(--line); }
+.seg button { border: 0; background: transparent; border-radius: 8px; padding: 8px 6px; font-size: 13.5px; font-weight: 600; color: var(--muted); display: grid; gap: 1px; transition: background .15s, color .15s; }
+.seg button small { font-size: 10.5px; font-weight: 500; opacity: .82; }
 .seg button[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); }
-.check { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; line-height: 1.35; }
-.check input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--amber); flex: none; }
-.check span small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+.check { display: flex; align-items: flex-start; gap: 10px; font-size: 14.5px; line-height: 1.35; cursor: pointer; }
+.check input { width: 19px; height: 19px; margin: 1px 0 0; accent-color: var(--amber); flex: none; }
+.check span small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
 input[type="range"] { width: 100%; accent-color: var(--amber); }
 .meter { height: 6px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line); overflow: hidden; }
 .meter i { display: block; height: 100%; width: 0; background: var(--amber); }
-.done-btn { border: 0; background: var(--amber); color: var(--amber-ink); font-weight: 700; border-radius: 12px; padding: 13px; font-size: 16px; }
+.done-btn { border: 0; background: var(--amber); color: var(--amber-ink); font-weight: 700; border-radius: var(--r-control); padding: 13px; font-size: 15.5px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -201,14 +233,18 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
 <div class="app" id="app">
   <div class="finder" id="finder">
     <video id="video" playsinline muted autoplay hidden></video>
-    <img id="still" alt="Last photo sent to Claude" hidden>
+    <img id="still" alt="Last captured question" hidden>
     <div class="placeholder" id="placeholder">
       <p class="ph-title" id="phTitle">Snap a question</p>
       <p class="ph-sub" id="phSub">Tap the shutter to open your camera. Readout reads the question, then each answer, out loud.</p>
       <button class="ph-btn" id="camRetry" type="button" hidden>Turn on camera</button>
     </div>
+    <div class="focus-ring" id="focusRing" aria-hidden="true"></div>
     <div class="brackets" id="brackets" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-    <div class="hint" id="hint" hidden><span id="hintText">Hold steady on a question</span></div>
+    <div class="vf-controls" id="hint" hidden>
+      <span class="hintSpan" id="hintText">Hold steady on a question</span>
+      <button class="zoom-pill" id="zoomBtn" type="button" aria-label="Camera zoom" hidden>1×</button>
+    </div>
   </div>
 
   <header class="bar">
@@ -235,13 +271,17 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     <div class="toast" id="toast" role="status" hidden></div>
 
     <section class="sheet" id="sheet" aria-label="Answer">
-      <button class="grip" id="grip" type="button" aria-label="Expand answer" aria-expanded="false"></button>
+      <div class="grip-area" id="gripArea">
+        <button class="grip" id="grip" type="button" aria-label="Expand answer" aria-expanded="false"></button>
+      </div>
       <div class="meta"><span class="tag" id="tag">Example</span><span id="metaText">Tap play to hear how answers sound</span></div>
       <div class="qbox" id="qBox"><span class="label">Question</span><p class="qtext" id="qText"></p></div>
       <div class="answers" id="answers" aria-live="polite"></div>
 
       <div class="player" id="player">
-        <div class="player-status" id="playStatus">Tap play to hear it</div>
+        <div class="player-head">
+          <div class="player-status" id="playStatus">Tap play to hear it</div>
+        </div>
         <p class="now" id="nowLine" hidden></p>
         <div class="transport">
           <button class="tbtn" id="backBtn" type="button" aria-label="Replay line" disabled>
@@ -295,7 +335,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   <div class="settings" id="settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
     <div class="settings-panel" id="settingsPanel">
       <div class="settings-head">
-        <h2 id="settingsTitle">Settings · v1012</h2>
+        <h2 id="settingsTitle">Settings · v1014</h2>
         <button class="icon-btn" id="settingsClose" type="button" aria-label="Close settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
@@ -307,7 +347,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
           <input class="input mono" id="apiKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-ant-...">
           <button class="pill" id="keyShow" type="button">Show</button>
         </div>
-        <p>Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. It is saved in this browser and sent to Anthropic with each request. Don't use this on a shared device or publish a copy containing your key.</p>
+        <p>Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. Saved locally in this browser and sent directly to Anthropic.</p>
       </div>
 
       <h3 class="sec">Voice</h3>
@@ -329,7 +369,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
         <p id="gStatus">Paste your key, pick a voice, and tap Test.</p>
         <div class="range-head"><label>Used this month</label><output id="gUsageOut">0</output></div>
         <div class="meter" aria-hidden="true"><i id="gMeter"></i></div>
-        <label class="check"><input type="checkbox" id="gCapCheck"><span>Stay in the free tier<small>Switches to the phone voice after 950,000 characters this month. Repeats replay saved audio, so they don't count. Counted on this phone only.</small></span></label>
+        <label class="check"><input type="checkbox" id="gCapCheck"><span>Stay in the free tier<small>Switches to the phone voice after 950,000 characters this month. Repeats replay cached audio for free.</small></span></label>
       </div>
       <div class="field" id="deviceVoiceField">
         <label for="voiceSelect">Phone voice</label>
@@ -340,12 +380,12 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       </div>
       <div class="field">
         <div class="range-head"><label for="rate">Speed</label><output id="rateOut" for="rate">0.80×</output></div>
-        <input type="range" id="rate" min="0.5" max="1.3" step="0.05" value="0.8">
+        <input type="range" id="rate" min="0.5" max="1.4" step="0.05" value="0.8">
       </div>
       <div class="field">
         <div class="range-head"><label for="volume">Volume</label><output id="volumeOut" for="volume">100%</output></div>
         <input type="range" id="volume" min="0" max="1" step="0.05" value="1">
-        <p>Works on top of your phone's volume buttons.</p>
+        <p>Works alongside your phone's hardware volume buttons.</p>
       </div>
 
       <h3 class="sec">Reading</h3>
@@ -364,18 +404,19 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       <div class="field">
         <span class="label">Pause between terms</span>
         <div class="seg" id="termSeg"></div>
-        <p>A beat before each plus, minus, equals and over, so you can write one number at a time.</p>
+        <p>Adds a rhythmic beat before plus, minus, equals, and over so you can write down one term at a time.</p>
       </div>
       <div class="field">
-        <label class="check"><input type="checkbox" id="stepsCheck"><span>Read the worked steps too<small>Reads each part's steps before its answer.</small></span></label>
+        <label class="check"><input type="checkbox" id="stepsCheck"><span>Read the worked steps too<small>Reads each part's steps before its final answer.</small></span></label>
         <label class="check"><input type="checkbox" id="againCheck"><span>Say "again" before each repeat</span></label>
-        <label class="check"><input type="checkbox" id="cuesCheck"><span>Sound cues<small>A tick when it scans and a chime when it's done reading.</small></span></label>
+        <label class="check"><input type="checkbox" id="cuesCheck"><span>Sound cues<small>Subtle audio tick on scan and chime when finished reading.</small></span></label>
       </div>
 
-      <h3 class="sec" id="autoSec" hidden>Auto answer</h3>
+      <h3 class="sec" id="autoSec" hidden>Camera &amp; Auto Answer</h3>
       <div class="field" id="autoField" hidden>
-        <label class="check"><input type="checkbox" id="autoCheck"><span>Answer automatically<small>Move to a new question and hold still. Readout answers on its own, once per question.</small></span></label>
-        <label class="check"><input type="checkbox" id="waitCheck"><span>Wait until reading is done<small>If you turn the page mid-answer, it finishes reading first, then scans the new page.</small></span></label>
+        <label class="check"><input type="checkbox" id="autoCheck"><span>Answer automatically<small>Move to a new question and hold still. Readout answers once per question.</small></span></label>
+        <label class="check"><input type="checkbox" id="waitCheck"><span>Wait until reading is done<small>Finishes dictating the current answer before scanning a new page.</small></span></label>
+        <label class="check"><input type="checkbox" id="enhanceCheck"><span>Enhance low-light text contrast<small>Sharpens faint pencil or dim print before sending to Claude.</small></span></label>
         <span class="label">Hold time</span>
         <div class="seg" id="holdSeg"></div>
       </div>
@@ -384,10 +425,10 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       <div class="field">
         <label for="studyMode">What are you working on?</label>
         <select class="input" id="studyMode">
-          <option value="practice">Practice, past, or released material</option>
+          <option value="practice">Practice, homework, past, or released material</option>
           <option value="active">Currently active graded assessment</option>
         </select>
-        <p>Select the correct context. A title such as “Midterm” alone does not tell Claude whether a sheet is currently graded. For active assessments, Readout provides hints and teaching rather than answer keys.</p>
+        <p>A printed heading like “Midterm” or “Quiz” does not indicate whether a sheet is live. Select Practice for full worked solutions, or Active Assessment for concept hints.</p>
       </div>
 
       <h3 class="sec">Answers</h3>
@@ -396,20 +437,20 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
         <div class="seg" id="modelSeg"></div>
         <p id="modelNote"></p>
       </div>
-      <div class="field" id="tierField" hidden>
-        <span class="label">Thinking</span>
+      <div class="field" id="tierField">
+        <span class="label">Thinking Depth</span>
         <div class="seg" id="tierSeg"></div>
-        <p>Answers run on your Claude plan. The first one asks your permission.</p>
+        <p id="tierNote">Controls extended reasoning budget for multi-step math and physics problems.</p>
       </div>
       <div class="field">
         <label for="extra">Extra instructions</label>
-        <textarea class="input" id="extra" maxlength="600" placeholder="Use radians. Round to 3 decimal places. Leave answers as fractions."></textarea>
+        <textarea class="input" id="extra" maxlength="600" placeholder="Use radians. Round to 3 decimal places. Leave answers as exact fractions."></textarea>
         <p>Applied to every answer.</p>
       </div>
 
       <h3 class="sec">Saved answers</h3>
       <div class="field">
-        <label class="check"><input type="checkbox" id="keepCheck"><span>Save answers on this phone<small>Your last 25 answers, so you can replay them later.</small></span></label>
+        <label class="check"><input type="checkbox" id="keepCheck"><span>Save answers on this phone<small>Keeps your last 25 answers for offline replay.</small></span></label>
         <button class="pill danger" id="clearBtn" type="button" style="justify-self:start">Clear saved answers</button>
       </div>
 
@@ -446,34 +487,36 @@ window.MathJax = {
     set(k, v) { try { localStorage.setItem("readout." + k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } }
   };
   const DEF = {
-    apiKey: "", model: "claude-sonnet-5-5", tier: "default",
+    apiKey: "", model: "claude-sonnet-4-5", tier: "default",
     voiceOn: true, voiceURI: "", rate: 0.8, volume: 1,
     engine: "device", gKey: "", gVoice: "en-US-Chirp3-HD-Charon", gCap: true,
     repeats: 2, repeatWhat: "answers", pauseMs: 1200, termPauseMs: 650, readSteps: false, sayAgain: true, cues: true,
-    auto: true, holdMs: 900, waitForVoice: true, studyMode: "practice",
+    auto: true, holdMs: 900, waitForVoice: true, enhanceImage: false, studyMode: "practice",
     extra: "", keepHistory: true
   };
   const settings = {};
   Object.keys(DEF).forEach((k) => { settings[k] = store.get(k, DEF[k]); });
   const save = (k, v) => { settings[k] = v; store.set(k, v); };
-  if (store.get("v", 1) < 2) {
-    save("rate", DEF.rate);
-    const old = store.get("speakSteps", null);
-    if (old !== null) save("readSteps", !!old);
-    store.set("v", 2);
-  }
+
+  // Migrate legacy model names (e.g. invalid 5-5 IDs) to valid Anthropic API endpoints
+  const MODEL_MIGRATION = {
+    "claude-haiku-5-5": "claude-haiku-4-5",
+    "claude-sonnet-5-5": "claude-sonnet-4-5",
+    "claude-opus-5-5": "claude-opus-4-5"
+  };
+  if (MODEL_MIGRATION[settings.model]) save("model", MODEL_MIGRATION[settings.model]);
 
   const MODELS = [
-    { id: "claude-haiku-5-5", name: "Haiku 5.5", sub: "Fastest", note: "Fast responses for clear, straightforward questions." },
-    { id: "claude-sonnet-5-5", name: "Sonnet 5.5", sub: "Balanced", note: "A balance of answer quality and response speed." },
-    { id: "claude-opus-5-5", name: "Opus 5.5", sub: "Smartest", note: "Best suited to the most difficult questions; usage may cost more." }
+    { id: "claude-haiku-4-5", name: "Haiku 4.5", sub: "Fastest", note: "Fastest responses for clear, straightforward questions." },
+    { id: "claude-sonnet-4-5", name: "Sonnet 4.5", sub: "Balanced", note: "Ideal balance of strong mathematical accuracy and speed." },
+    { id: "claude-opus-4-5", name: "Opus 4.5", sub: "Smartest", note: "Highest accuracy for complex proofs, physics, and multi-part math." }
   ];
   if (!MODELS.some((m) => m.id === settings.model)) save("model", DEF.model);
 
   const TIERS = [
-    { id: "quick", name: "Quick", sub: "Instant" },
-    { id: "default", name: "Balanced", sub: "Thinks first" },
-    { id: "complex", name: "Deep", sub: "Hard problems" }
+    { id: "quick", name: "Quick", sub: "Instant", budget: 0 },
+    { id: "default", name: "Balanced", sub: "Thinks first", budget: 2048 },
+    { id: "complex", name: "Deep", sub: "Hard problems", budget: 6000 }
   ];
   const HOLDS = [
     { id: 600, name: "Quick", sub: "0.6 s" },
@@ -504,7 +547,7 @@ window.MathJax = {
     { id: "device", name: "Phone voice", sub: "Free, built in" },
     { id: "google", name: "Google HD", sub: "Natural" }
   ];
-  const SPEEDS = [0.6, 0.7, 0.8, 0.9, 1, 1.1];
+  const SPEEDS = [0.6, 0.7, 0.8, 0.9, 1, 1.15, 1.3];
   const G_VOICES = [
     ["Charon", "male"], ["Kore", "female"], ["Puck", "male"], ["Aoede", "female"], ["Orus", "male"], ["Leda", "female"],
     ["Fenrir", "male"], ["Zephyr", "female"], ["Achird", "male"], ["Achernar", "female"], ["Algenib", "male"], ["Autonoe", "female"],
@@ -514,49 +557,45 @@ window.MathJax = {
   ];
   const G_CAP = 950000;
 
-  // Consistent study context for both the direct image request and OCR recovery.
-  // A printed "Exam" or "Midterm" title can be part of a released/practice sheet.
+  // ---------- System & Study Context ----------
   const STUDY_SYSTEM = [
-    "You are Readout, a tutor that helps users learn from educational materials, including practice questions and old or released exam papers.",
-    "The document header is content to read, not a reliable signal of assessment status: 'exam', 'quiz', 'midterm', 'final', time limits, points, and page numbers often appear in practice and archival documents.",
-    "Use the user's explicitly selected study context; do not assert an exam is live solely from text printed on the page.",
-    "When working on practice, past or released questions, answer the actual visible question with accurate worked steps and avoid changing it into a different exercise.",
-    "When the user says they are completing an actively graded assessment, provide tutoring help, reasoning guidance and illustrative examples instead of direct answer keys.",
-    "If the image is unreadable, say so plainly; do not invent a question or an answer."
+    "You are Readout, an expert stem & humanities tutor that reads photographed questions and dictates clear solutions.",
+    "Document headers ('Exam', 'Quiz', 'Midterm', 'Final', points, or time limits) appear on archived study guides, practice exams, and review sheets; never assume an assessment is live solely from printed headers.",
+    "Always respect the user's selected study context.",
+    "When context is PRACTICE / PAST / RELEASED STUDY MATERIAL, solve the exact visible question completely with step-by-step work and final answers.",
+    "When context is CURRENTLY ACTIVE GRADED ASSESSMENT, provide conceptual hints and a parallel example rather than direct final answers.",
+    "Verify all arithmetic, signs, matrix dimensions, and derivatives carefully before outputting the final answer."
   ].join(" ");
 
   function studyContext() {
     if (settings.studyMode === "active") {
-      return "Assessment context selected by the user: CURRENTLY ACTIVE GRADED ASSESSMENT. Please offer hints, concepts and a parallel worked example. Avoid an answer key to the active assessment.";
+      return "Assessment context selected by the user: CURRENTLY ACTIVE GRADED ASSESSMENT. Provide conceptual hints and a parallel worked example rather than a direct answer key.";
     }
-    return "Assessment context selected by the user: PRACTICE / PAST / RELEASED STUDY MATERIAL. The user is working on study materials, not presenting an in-progress graded test. Work through the exact photographed questions and provide the answers and explanations. Printed titles like Midterm, Exam or Quiz are part of the document, not proof of a live assessment. If there is specific evidence that conflicts with this declaration, describe the uncertainty without making assumptions.";
+    return "Assessment context selected by the user: PRACTICE / PAST / RELEASED STUDY MATERIAL. Solve the exact photographed problem completely and accurately with worked steps and final answers.";
   }
 
   const BASE_PROMPT = [
-    "Analyze the actual photographed question. The user's assessment context is provided separately. Do not decide assessment status using only a printed heading (Exam, Midterm, Test, Quiz). For practice materials, explain and solve the original problem; do not silently substitute another question.",
-    "The image is a photo of something with text: a worksheet, a textbook page, a screen, a whiteboard, a sign, or a label.",
-    "The person listens to your reply read aloud and writes it down by hand, so the spoken text must be easy to copy.",
+    "Analyze the photographed question and follow the user's assessment context.",
+    "The user listens to your reply read aloud while writing by hand, so spoken text must be natural, unambiguous dictation.",
     "",
     "What to do:",
-    "- A problem or exercise: solve it with a step-by-step tutoring explanation. For multiple choice, give the letter and the option.",
-    "- A problem with parts (a, b, c or 1, 2, 3): handle every part, in order.",
+    "- A problem or exercise: solve it step-by-step. For multiple choice, state both the letter and the matching option text.",
+    "- A problem with parts (a, b, c or 1, 2, 3): solve every visible part in order.",
     "- Several separate numbered problems fully in view: treat each one as a part, labeled with its number.",
-    "- A prompt or instruction: do it, briefly.",
-    "- Text in another language: the answer is the English translation.",
-    "- Plain text with no question (a sign, a label, a paragraph): the answer says what it means in one or two sentences.",
-    "Be correct first, then brief. Check your arithmetic. Ignore background clutter and text cut off at the edges.",
+    "- Text in another language: translate to English.",
+    "- Plain text with no question: summarize its meaning in one or two clear sentences.",
     "",
-    "Reply format. One item per line and nothing else: no blank lines, no markdown. Each line is: TAG: display text || spoken text",
-    "- display text is shown on screen. Write math in \\( \\) and money as \\$. Write absolute value and magnitude as \\lvert x \\rvert or \\lVert v \\rvert, never as bare | bars, so a line never has two | in a row except the divider.",
-    "- spoken text is read aloud for dictation: plain words only, never LaTeX, backslashes, braces or | bars. Say math the way a teacher dictates it, for example \"x equals negative 3 over 4\", \"2 x squared plus 5 x\", \"the square root of 2, all over 2\". Say subscripts with sub, like \"2 I sub 1 minus 3 I sub 2\". Keep every term in the same order as the display.",
+    "Strict Reply Format — one item per line, no markdown code fences, no blank lines:",
+    "TAG: display text || spoken text",
+    "- display text: shown on screen. Wrap all math in \\( ... \\) and currency as \\$. Write absolute values/norms as \\lvert x \\rvert or \\lVert v \\rVert (never raw | bars).",
+    "- spoken text: plain English words for dictation (no LaTeX, no backslashes, no braces). Dictate math clearly: e.g., \"x equals negative 3 over 4\", \"the integral from 0 to pi of sine x, d x\", \"lambda sub 1 equals 5\".",
     "",
-    "Tags, in this order:",
-    "Q: the question or the shared instructions, copied faithfully. Leave it out only if there is no shared text.",
-    "PART <label>: the text of one part, using the label printed on the page (a, b, 1, 2, ii). Leave PART lines out for a single problem with no parts.",
-    "W: one short line of worked steps for the current part, 0 to 5 lines, only what is needed. Always before that part's A.",
-    "A: the final answer for the current part, or for the whole problem if there are no parts. Short and direct.",
-    "Repeat PART, W, A for each part.",
-    "If there is no readable text, reply with exactly: NONE",
+    "Allowed Tags (in order):",
+    "Q: shared question stem or instructions (omit if none).",
+    "PART <label>: text of a sub-part using its printed label (a, b, 1, 2, ii). Omit for single-part questions.",
+    "W: one concise worked step for the current part (1 to 5 W lines before A).",
+    "A: the final answer for the current part (or whole question).",
+    "If no readable text is in view, reply with exactly: NONE",
     "",
     "Example:",
     "Q: Let \\(f(x) = x^2 \\sin x\\). || Let f of x equal x squared sine x.",
@@ -564,17 +603,18 @@ window.MathJax = {
     "W: Product rule: \\((uv)' = u'v + uv'\\) || Use the product rule.",
     "A: \\(f'(x) = 2x\\sin x + x^2\\cos x\\) || f prime of x equals 2 x sine x, plus x squared cosine x.",
     "PART b: Find \\(f'(0)\\). || Find f prime of 0.",
-    "W: \\(f'(0) = 0 + 0\\) || Plug in 0. Both terms are 0.",
+    "W: \\(f'(0) = 0 + 0\\) || Substitute 0 into each term.",
     "A: \\(f'(0) = 0\\) || f prime of 0 equals 0."
   ];
+
   function buildPrompt() {
     const extra = String(settings.extra || "").trim().slice(0, 600);
     const lines = BASE_PROMPT.slice();
-    if (extra) lines.push("", "Standing preferences from the person. Follow them unless they break the reply format:", extra);
+    if (extra) lines.push("", "User preferences (follow without breaking TAG: display || spoken format):", extra);
     return [studyContext(), ...lines].join("\n");
   }
 
-  // ---------- environment ----------
+  // ---------- Environment & State ----------
   const IN_VIEWER = !!(window.claude && typeof window.claude.use === "function");
   const CAN_LIVE = !IN_VIEWER && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
   const CAN_GOOGLE = !IN_VIEWER;
@@ -592,7 +632,6 @@ window.MathJax = {
     ts: 0
   };
 
-  // Older saved answers used a flat shape; convert them to question + parts.
   function normEntry(h) {
     if (!h || typeof h !== "object") return null;
     if (Array.isArray(h.parts)) return h;
@@ -606,12 +645,14 @@ window.MathJax = {
   }
 
   const state = {
-    backend: IN_VIEWER ? "pending" : "api", // pending | sample | api | none
+    backend: IN_VIEWER ? "pending" : "api",
     note: "",
     sample: null,
     live: false,
     stream: null,
     facing: store.get("facing", "environment"),
+    zoomLevels: [1],
+    zoomIdx: 0,
     busy: false,
     ctl: null,
     run: 0,
@@ -626,7 +667,7 @@ window.MathJax = {
     gWarnAt: 0
   };
 
-  // ---------- toast ----------
+  // ---------- Toast ----------
   let toastTimer = 0;
   function toast(msg, kind, ms) {
     const t = $("toast");
@@ -634,226 +675,46 @@ window.MathJax = {
     t.className = "toast" + (kind === "warn" ? " warn" : "");
     t.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { t.hidden = true; }, ms || 3800);
+    toastTimer = setTimeout(() => { t.hidden = true; }, ms || 3600);
   }
 
-  // ---------- math: clear old elements BEFORE changing DOM; typeset serially ----------
-  const pendingMath = new Set();
-  let mathChain = Promise.resolve();
-  let mathTimer = 0;
-  let mathLoadingWarning = false;
-  function clearMath(els) {
-    const MJ = window.MathJax;
-    if (MJ && typeof MJ.typesetClear === "function") {
-      try { MJ.typesetClear(els); } catch (e) { /* removed nodes or startup not ready */ }
-    }
-  }
-  function flushMath() {
-    if (mathTimer) { clearTimeout(mathTimer); mathTimer = 0; }
-    const MJ = window.MathJax;
-    if (!MJ || typeof MJ.typesetPromise !== "function") {
-      if (window.__readoutMathLoadFailure && !mathLoadingWarning) {
-        mathLoadingWarning = true;
-        toast("Math library could not load. Check your connection or content blocker.", "warn", 7000);
-      }
-      return;
-    }
-    const els = [...pendingMath].filter((el) => el && el.isConnected);
-    pendingMath.clear();
-    if (!els.length) return;
-    mathChain = mathChain.catch(() => {}).then(async () => {
-      // Delayed MathJax loading and updates may overlap; never typeset a detached node.
-      const live = els.filter((el) => el.isConnected);
-      if (!live.length) return;
-      await MJ.typesetPromise(live);
-    }).catch((e) => {
-      if (!mathLoadingWarning) {
-        mathLoadingWarning = true;
-        toast("Some equations could not be formatted. Showing original LaTeX.", "warn", 6500);
-      }
+  // ---------- Zero-Flicker Cached MathJax Engine ----------
+  const mathCache = new Map();
+  let mathWarned = false;
+  let mathReadyPromise = null;
+
+  function getMathJaxReady() {
+    const ready = () => window.MathJax && typeof window.MathJax.tex2chtmlPromise === "function";
+    if (ready()) return Promise.resolve(window.MathJax);
+    if (mathReadyPromise) return mathReadyPromise;
+    mathReadyPromise = new Promise((resolve, reject) => {
+      let tries = 0;
+      const tick = () => {
+        if (ready()) return resolve(window.MathJax);
+        if (window.__readoutMathLoadFailure) return reject(new Error("MathJax failed to load"));
+        if (tries++ > 120) return reject(new Error("MathJax timed out"));
+        setTimeout(tick, 100);
+      };
+      tick();
     });
-  }
-  function typeset(el) {
-    pendingMath.add(el);
-    if (!mathTimer) mathTimer = setTimeout(flushMath, 50);
-  }
-  window.__readoutMath = flushMath;
-
-  // ---------- phone voices ----------
-  let voices = [];
-  const LOW_QUALITY = /eddy|flo\b|grandma|grandpa|reed|rocko|sandy|shelley|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|albert|fred|junior|ralph|kathy|compact/i;
-  function voiceScore(v) {
-    let s = 0;
-    if (/premium/i.test(v.name)) s += 5;
-    if (/enhanced|natural|neural/i.test(v.name)) s += 4;
-    if (/^en[-_]US/i.test(v.lang)) s += 2; else if (/^en/i.test(v.lang)) s += 1;
-    if (/samantha|ava|zoe|evan|nathan|allison|susan|tom|google us english|aria|jenny|guy/i.test(v.name)) s += 1;
-    if (LOW_QUALITY.test(v.name)) s -= 4;
-    return s;
-  }
-  function loadVoices() {
-    try { voices = (window.speechSynthesis && window.speechSynthesis.getVoices()) || []; } catch (e) { voices = []; }
-    if (!$("settings").hidden) fillVoices();
-  }
-  function pickVoice() {
-    const chosen = voices.find((v) => v.voiceURI === settings.voiceURI);
-    if (chosen) return chosen;
-    const en = voices.filter((v) => /^en/i.test(v.lang));
-    if (!en.length) return null;
-    return en.slice().sort((a, b) => voiceScore(b) - voiceScore(a))[0];
+    return mathReadyPromise;
   }
 
-  // ---------- sound cues and audio unlock ----------
-  let actx = null;
-  function audioCtx() {
-    if (!actx) { const C = window.AudioContext || window.webkitAudioContext; if (C) { try { actx = new C(); } catch (e) { actx = null; } } }
-    return actx;
-  }
-  function cue(kind) {
-    if (!settings.cues || !settings.voiceOn) return;
-    const ctx = audioCtx();
-    if (!ctx || ctx.state !== "running") return;
-    const t0 = ctx.currentTime + 0.01;
-    const notes = kind === "capture" ? [[1046, 0, 0.06]] : [[659, 0, 0.14], [988, 0.14, 0.22]];
-    const peak = 0.22 * Math.max(0.05, settings.volume);
-    notes.forEach(([f, at, d]) => {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.type = "sine";
-      o.frequency.value = f;
-      g.gain.setValueAtTime(0.0001, t0 + at);
-      g.gain.exponentialRampToValueAtTime(peak, t0 + at + 0.012);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + d);
-      o.connect(g); g.connect(ctx.destination);
-      o.start(t0 + at); o.stop(t0 + at + d + 0.05);
-    });
-  }
-  const gAudio = new Audio();
-  gAudio.preload = "auto";
-  gAudio.setAttribute("playsinline", "");
-  let silentUrl = "";
-  function silentWav() {
-    if (silentUrl) return silentUrl;
-    const n = 800, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
-    const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-    w(0, "RIFF"); v.setUint32(4, 36 + n, true); w(8, "WAVE"); w(12, "fmt ");
-    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-    v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
-    w(36, "data"); v.setUint32(40, n, true);
-    for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);
-    silentUrl = URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
-    return silentUrl;
-  }
-  function unlock() {
-    if (!state.unlocked) {
-      state.unlocked = true;
-      const s = window.speechSynthesis;
-      if (s) { try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; s.speak(u); } catch (e) { /* ignore */ } }
-      if (CAN_GOOGLE) {
-        try { gAudio.src = silentWav(); const p = gAudio.play(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* ignore */ }
-      }
-    }
-    const c = audioCtx();
-    if (c && c.state !== "running") { try { c.resume(); } catch (e) { /* ignore */ } }
-  }
-  document.addEventListener("pointerdown", unlock, { capture: true });
-  document.addEventListener("keydown", (e) => {
-    if (e.isTrusted && (e.key === "Enter" || e.key === " ")) unlock();
-  }, { capture: true });
+  window.__readoutMath = () => {
+    renderKey = "";
+    if (state.current) renderEntry(state.current, !state.busy);
+  };
 
-  // ---------- text helpers ----------
-  // Fallback: turn leftover LaTeX into words, in case a spoken line ever arrives with math code in it.
-  const GREEK = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi pi rho sigma tau upsilon phi chi psi omega Gamma Delta Theta Lambda Sigma Phi Psi Omega".split(" ");
-  function toSpeech(s) {
-    let t = String(s || "");
-    t = t.replace(/\\\$\s?(\d[\d,.]*)/g, " $1 dollars ").replace(/\\\$/g, " dollars ")
-      .replace(/\\\(|\\\)|\\\[|\\\]|\$\$?/g, " ")
-      .replace(/\\(left|right|big|Big|bigg|Bigg)\b/g, "")
-      .replace(/\\(mathbf|vec|boldsymbol|hat|bar|mathrm|text|textbf|operatorname|mathit)\{([^{}]*)\}/g, " $2 ")
-      .replace(/\\\|([^|]+?)\\\|/g, " the magnitude of $1 ")
-      .replace(/\\lVert([^]*?)\\rVert/g, " the magnitude of $1 ")
-      .replace(/\\lvert([^]*?)\\rvert/g, " the absolute value of $1 ");
-    for (let k = 0; k < 3; k++) {
-      t = t.replace(/\\d?t?frac\{([^{}]*)\}\{([^{}]*)\}/g, " $1 over $2 ")
-        .replace(/\\sqrt\[([^\]]*)\]\{([^{}]*)\}/g, " the $1 root of $2 ")
-        .replace(/\\sqrt\{([^{}]*)\}/g, " the square root of $1 ");
-    }
-    t = t.replace(/\|([^|]{1,40})\|/g, " the magnitude of $1 ")
-      .replace(/\^\{?2\}?(?![\d])/g, " squared ").replace(/\^\{?3\}?(?![\d])/g, " cubed ")
-      .replace(/\^\{([^{}]*)\}/g, " to the $1 ").replace(/\^(\w)/g, " to the $1 ")
-      .replace(/_\{([^{}]*)\}/g, " sub $1 ").replace(/_(\w)/g, " sub $1 ")
-      .replace(/\\cdot/g, " times ").replace(/\\times/g, " times ").replace(/\\div/g, " divided by ")
-      .replace(/\\pm/g, " plus or minus ").replace(/\\approx/g, " approximately ")
-      .replace(/\\(leq|le)\b/g, " is less than or equal to ").replace(/\\(geq|ge)\b/g, " is greater than or equal to ")
-      .replace(/\\(neq|ne)\b/g, " does not equal ").replace(/\\infty/g, " infinity ").replace(/\\to\b|\\rightarrow/g, " goes to ")
-      .replace(/\\(sin|cos|tan|sec|csc|cot|ln|log|lim|int|sum|max|min)\b/g, " $1 ")
-      .replace(/\\([A-Za-z]+)/g, (m, w) => (GREEK.indexOf(w) >= 0 ? " " + w.toLowerCase() + " " : " "))
-      .replace(/[{}\\|]/g, " ")
-      .replace(/</g, " is less than ").replace(/>/g, " is greater than ")
-      .replace(/\s=\s|=/g, " equals ").replace(/\s+/g, " ").trim();
-    return t;
-  }
-  // Anything spoken goes through this, so math code is never read out literally.
-  function speakable(s) {
-    const t = String(s || "");
-    return /\\[A-Za-z(\[)\]|$]|[{}^_]|\|\|/.test(t) ? toSpeech(t.replace(/\|\|/g, " ")) : t;
-  }
-  function plain(s) { return String(s || "").replace(/\\\(|\\\)|\\\[|\\\]/g, "").replace(/\s+/g, " ").trim(); }
-  function sentences(s) {
-    const parts = String(s || "").replace(/\s+/g, " ").trim().split(/([.!?;])\s+(?=\S)/);
-    const out = [];
-    for (let i = 0; i < parts.length; i += 2) {
-      const t = (parts[i] + (parts[i + 1] || "")).trim();
-      if (!t) continue;
-      if (out.length && t.split(" ").length < 2 && !/^(part|number)\b/i.test(out[out.length - 1])) out[out.length - 1] += " " + t;
-      else out.push(t);
-    }
-    return out;
-  }
-  function labelSpoken(part) {
-    if (!part.label) return "";
-    return /^\d+$/.test(part.label) ? "Number " + part.label + "." : "Part " + part.label + ".";
-  }
-  // Spoken plan: question, then each part's text and answer. Repeats read part labels and answers only.
-  function speechPlan(e, withSteps) {
-    const first = [], again = [];
-    if (e.q && e.q.s) sentences(speakable(e.q.s)).forEach((t) => first.push({ t, k: "q", i: -1 }));
-    e.parts.forEach((p, i) => {
-      const lab = labelSpoken(p);
-      if (p.p && p.p.s) {
-        const ps = sentences(speakable(p.p.s));
-        if (lab && ps.length && !/^(part|number|question|problem)\b/i.test(ps[0])) ps[0] = lab + " " + ps[0];
-        ps.forEach((t) => first.push({ t, k: "p", i }));
-      } else if (lab) {
-        first.push({ t: lab, k: "label", i });
-      }
-      if (withSteps && p.w.length) p.w.forEach((w) => sentences(speakable(w.s)).forEach((t) => first.push({ t, k: "w", i })));
-      if (p.a && p.a.s) {
-        const sa = speakable(p.a.s);
-        const ans = /^answer\b/i.test(sa) ? sa : "Answer: " + sa;
-        const lines = sentences(ans);
-        lines.forEach((t) => first.push({ t, k: "a", i }));
-        if (lab) again.push({ t: lab, k: "label", i });
-        lines.forEach((t) => again.push({ t, k: "a", i }));
-      }
-    });
-    return { first, again: settings.repeatWhat === "all" ? null : again };
-  }
-
-    // Keep already-delimited TeX intact; wrap only UNDELIMITED math expressions,
-  // not entire English sentences (which MathJax would render as broken equations).
   function delimitMath(s) {
     const src = String(s || "");
     const pieces = src.split(/(\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$\$[\s\S]*?\$\$|(?<!\\)\$(?!\$)[^$\n]+\$)/g);
     return pieces.map((piece, i) => {
-      if (i % 2 === 1) return piece;  // Already inside a math environment
-      return piece.replace(/\\(?:dfrac|tfrac|frac)\s*\{(?:[^{}]|\{[^{}]*\})*\}\s*\{(?:[^{}]|\{[^{}]*\})*\}|\\(?:sqrt|boxed|overline|underline|vec|hat|bar)\s*(?:\[[^\]]*\])?\s*\{(?:[^{}]|\{[^{}]*\})*\}|\\(?:alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|phi|omega|times|cdot|leq|geq|neq|approx|infty|pm|sum|int|lim|sin|cos|tan)\b|\b[A-Za-z0-9]+\s*[_^]\s*(?:\{[^{}]+\}|[A-Za-z0-9]+)/g,
+      if (i % 2 === 1) return piece;
+      return piece.replace(/\\(?:dfrac|tfrac|frac)\s*\{(?:[^{}]|\{[^{}]*\})*\}\s*\{(?:[^{}]|\{[^{}]*\})*\}|\\(?:sqrt|boxed|overline|underline|vec|hat|bar|mathbf|mathcal)\s*(?:\[[^\]]*\])?\s*\{(?:[^{}]|\{[^{}]*\})*\}|\\(?:alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|phi|omega|Delta|Omega|Sigma|times|cdot|leq|geq|neq|approx|infty|pm|sum|int|lim|sin|cos|tan|det|dim|ker|rank)\b|\b[A-Za-z0-9]+\s*[_^]\s*(?:\{[^{}]+\}|[A-Za-z0-9]+)/g,
         (math) => "\\(" + math.trim() + "\\)");
     }).join("");
   }
 
-  // ---------- inline math rendering ----------
-  let mathWarned = false;
-  let mathReadyPromise = null;
   function mathTokens(src) {
     const text = delimitMath(String(src || ""));
     const out = [];
@@ -891,6 +752,7 @@ window.MathJax = {
     }
     return out;
   }
+
   function unpackMath(raw) {
     if (raw.startsWith("\\[") && raw.endsWith("\\]")) return { tex: raw.slice(2, -2).trim(), display: true };
     if (raw.startsWith("\\(") && raw.endsWith("\\)")) return { tex: raw.slice(2, -2).trim(), display: false };
@@ -898,67 +760,271 @@ window.MathJax = {
     if (raw.startsWith("$") && raw.endsWith("$")) return { tex: raw.slice(1, -1).trim(), display: false };
     return { tex: raw, display: false };
   }
-  function getMathJaxReady() {
 
-    const ready = () => window.MathJax && typeof window.MathJax.tex2chtmlPromise === "function";
-    if (ready()) return Promise.resolve(window.MathJax);
-    if (mathReadyPromise) return mathReadyPromise;
-    mathReadyPromise = new Promise((resolve, reject) => {
-      let tries = 0;
-      const tick = () => {
-        if (ready()) return resolve(window.MathJax);
-        if (window.__readoutMathLoadFailure) return reject(new Error("MathJax failed to load"));
-        if (tries++ > 120) return reject(new Error("MathJax timed out"));
-        setTimeout(tick, 120);
-      };
-      tick();
-    });
-    return mathReadyPromise;
-  }
   async function fillMath(el, src) {
     if (!el) return;
-    const tokens = mathTokens(src);
+    const normSrc = String(src || "");
+    if (el.dataset.rawMath === normSrc) return; // Skip DOM touch if unchanged
+    el.dataset.rawMath = normSrc;
+
+    const tokens = mathTokens(normSrc);
     const ticket = String(Date.now()) + Math.random().toString(36).slice(2);
     el.dataset.mathTicket = ticket;
     el.innerHTML = "";
     const jobs = [];
+
     tokens.forEach((tok) => {
       if (tok.kind === "text") {
         el.appendChild(document.createTextNode(tok.value));
         return;
       }
       const { tex, display } = unpackMath(tok.value);
+      const cacheKey = (display ? "D:" : "I:") + tex;
       const holder = document.createElement(display ? "div" : "span");
       holder.className = "math-frag";
-      holder.textContent = tok.value;
       if (display) holder.style.display = "block";
+
+      // Instant synchronous cache hit prevents flicker during SSE streaming
+      if (mathCache.has(cacheKey)) {
+        holder.appendChild(mathCache.get(cacheKey).cloneNode(true));
+        el.appendChild(holder);
+        return;
+      }
+
+      holder.textContent = tok.value;
       el.appendChild(holder);
-      jobs.push({ holder, tex, display });
+      jobs.push({ holder, tex, display, cacheKey });
     });
+
     if (!jobs.length) return;
     try {
       const MJ = await getMathJaxReady();
-      await Promise.all(jobs.map(async ({ holder, tex, display }) => {
+      await Promise.all(jobs.map(async ({ holder, tex, display, cacheKey }) => {
         if (!holder.isConnected || el.dataset.mathTicket !== ticket) return;
         const node = await MJ.tex2chtmlPromise(tex, { display });
+        if (mathCache.size > 400) mathCache.clear();
+        mathCache.set(cacheKey, node.cloneNode(true));
         if (!holder.isConnected || el.dataset.mathTicket !== ticket) return;
         holder.replaceChildren(node);
       }));
     } catch (e) {
       if (!mathWarned) {
         mathWarned = true;
-        toast("Math rendering is unavailable right now. Showing the original LaTeX.", "warn", 6500);
+        toast("Math rendering unavailable. Showing plain LaTeX.", "warn", 5000);
       }
     }
   }
 
-  // ---------- reply parsing: "TAG: display || spoken" lines ----------
+  // ---------- Phone Voices ----------
+  let voices = [];
+  const LOW_QUALITY = /eddy|flo\b|grandma|grandpa|reed|rocko|sandy|shelley|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|albert|fred|junior|ralph|kathy|compact/i;
+  function voiceScore(v) {
+    let s = 0;
+    if (/premium/i.test(v.name)) s += 5;
+    if (/enhanced|natural|neural|siri/i.test(v.name)) s += 4;
+    if (/^en[-_]US/i.test(v.lang)) s += 2; else if (/^en/i.test(v.lang)) s += 1;
+    if (/samantha|ava|zoe|evan|nathan|allison|susan|tom|google us english|aria|jenny|guy/i.test(v.name)) s += 1;
+    if (LOW_QUALITY.test(v.name)) s -= 4;
+    return s;
+  }
+  function loadVoices() {
+    try { voices = (window.speechSynthesis && window.speechSynthesis.getVoices()) || []; } catch (e) { voices = []; }
+    if (!$("settings").hidden) fillVoices();
+  }
+  function pickVoice() {
+    const chosen = voices.find((v) => v.voiceURI === settings.voiceURI);
+    if (chosen) return chosen;
+    const en = voices.filter((v) => /^en/i.test(v.lang));
+    if (!en.length) return null;
+    return en.slice().sort((a, b) => voiceScore(b) - voiceScore(a))[0];
+  }
+
+  // ---------- Sound Cues, WebAudio Gain & Unlock ----------
+  let actx = null;
+  let gGainNode = null;
+  let gSourceConnected = false;
+
+  function audioCtx() {
+    if (!actx) {
+      const C = window.AudioContext || window.webkitAudioContext;
+      if (C) { try { actx = new C(); } catch (e) { actx = null; } }
+    }
+    return actx;
+  }
+
+  const gAudio = new Audio();
+  gAudio.preload = "auto";
+  gAudio.crossOrigin = "anonymous";
+  gAudio.setAttribute("playsinline", "");
+
+  function syncAudioVolume() {
+    const vol = Math.max(0, Math.min(1, Number(settings.volume) || 1));
+    try { gAudio.volume = vol; } catch (e) { /* iOS fallback below */ }
+    if (gGainNode && actx) {
+      try { gGainNode.gain.setValueAtTime(vol, actx.currentTime); } catch (e) {}
+    }
+  }
+
+  function ensureWebAudioGain() {
+    const ctx = audioCtx();
+    if (!ctx || gSourceConnected) return;
+    try {
+      const src = ctx.createMediaElementSource(gAudio);
+      gGainNode = ctx.createGain();
+      gGainNode.gain.value = Math.max(0, Math.min(1, Number(settings.volume) || 1));
+      src.connect(gGainNode);
+      gGainNode.connect(ctx.destination);
+      gSourceConnected = true;
+    } catch (e) { /* already connected or unsupported */ }
+  }
+
+  function cue(kind) {
+    if (!settings.cues || !settings.voiceOn) return;
+    const ctx = audioCtx();
+    if (!ctx || ctx.state !== "running") return;
+    const t0 = ctx.currentTime + 0.01;
+    const notes = kind === "capture" ? [[1046, 0, 0.055]] : [[659, 0, 0.13], [988, 0.13, 0.21]];
+    const peak = 0.2 * Math.max(0.05, settings.volume);
+    notes.forEach(([f, at, d]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0 + at);
+      g.gain.exponentialRampToValueAtTime(peak, t0 + at + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + d);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(t0 + at); o.stop(t0 + at + d + 0.04);
+    });
+  }
+
+  let silentUrl = "";
+  function silentWav() {
+    if (silentUrl) return silentUrl;
+    const n = 800, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+    const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    w(0, "RIFF"); v.setUint32(4, 36 + n, true); w(8, "WAVE"); w(12, "fmt ");
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+    w(36, "data"); v.setUint32(40, n, true);
+    for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);
+    silentUrl = URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+    return silentUrl;
+  }
+
+  function unlock() {
+    if (!state.unlocked) {
+      state.unlocked = true;
+      const s = window.speechSynthesis;
+      if (s) { try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; s.speak(u); } catch (e) {} }
+      if (CAN_GOOGLE) {
+        try {
+          ensureWebAudioGain();
+          gAudio.src = silentWav();
+          const p = gAudio.play();
+          if (p && p.catch) p.catch(() => {});
+        } catch (e) {}
+      }
+    }
+    const c = audioCtx();
+    if (c && c.state !== "running") { try { c.resume(); } catch (e) {} }
+  }
+  document.addEventListener("pointerdown", unlock, { capture: true });
+  document.addEventListener("keydown", (e) => {
+    if (e.isTrusted && (e.key === "Enter" || e.key === " ")) unlock();
+  }, { capture: true });
+
+  // ---------- LaTeX-to-Speech Fallback ----------
+  const GREEK = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi pi rho sigma tau upsilon phi chi psi omega Gamma Delta Theta Lambda Sigma Phi Psi Omega".split(" ");
+  function toSpeech(s) {
+    let t = String(s || "");
+    t = t.replace(/\\\$\s?(\d[\d,.]*)/g, " $1 dollars ").replace(/\\\$/g, " dollars ")
+      .replace(/\\\(|\\\)|\\\[|\\\]|\$\$?/g, " ")
+      .replace(/\\(left|right|big|Big|bigg|Bigg)\b/g, "")
+      .replace(/\\(mathbf|vec|boldsymbol|hat|bar|mathrm|text|textbf|operatorname|mathit|mathcal)\{([^{}]*)\}/g, " $2 ")
+      .replace(/\\\|([^|]+?)\\\|/g, " the norm of $1 ")
+      .replace(/\\lVert([^]*?)\\rVert/g, " the norm of $1 ")
+      .replace(/\\lvert([^]*?)\\rvert/g, " the absolute value of $1 ");
+    for (let k = 0; k < 3; k++) {
+      t = t.replace(/\\d?t?frac\{([^{}]*)\}\{([^{}]*)\}/g, " $1 over $2 ")
+        .replace(/\\binom\{([^{}]*)\}\{([^{}]*)\}/g, " $1 choose $2 ")
+        .replace(/\\sqrt\[([^\]]*)\]\{([^{}]*)\}/g, " the $1 root of $2 ")
+        .replace(/\\sqrt\{([^{}]*)\}/g, " the square root of $1 ");
+    }
+    t = t.replace(/\|([^|]{1,40})\|/g, " the absolute value of $1 ")
+      .replace(/\^\{?\\top\}?|\^\{?T\}?/g, " transpose ")
+      .replace(/\^\{?-1\}?/g, " inverse ")
+      .replace(/\^\{?2\}?(?![\d])/g, " squared ").replace(/\^\{?3\}?(?![\d])/g, " cubed ")
+      .replace(/\^\{([^{}]*)\}/g, " to the $1 ").replace(/\^(\w)/g, " to the $1 ")
+      .replace(/_\{([^{}]*)\}/g, " sub $1 ").replace(/_(\w)/g, " sub $1 ")
+      .replace(/\\cdot/g, " times ").replace(/\\times/g, " times ").replace(/\\div/g, " divided by ")
+      .replace(/\\pm/g, " plus or minus ").replace(/\\mp/g, " minus or plus ").replace(/\\approx/g, " is approximately ")
+      .replace(/\\(leq|le)\b/g, " is less than or equal to ").replace(/\\(geq|ge)\b/g, " is greater than or equal to ")
+      .replace(/\\(neq|ne)\b/g, " does not equal ").replace(/\\infty/g, " infinity ").replace(/\\to\b|\\rightarrow/g, " goes to ")
+      .replace(/\\partial\b/g, " partial ").replace(/\\nabla\b/g, " del ")
+      .replace(/\\in\b/g, " in ").replace(/\\subset\b/g, " is a subset of ").replace(/\\cup\b/g, " union ").replace(/\\cap\b/g, " intersection ")
+      .replace(/\\(sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|ln|log|lim|int|sum|prod|det|dim|ker|rank|max|min)\b/g, " $1 ")
+      .replace(/\\([A-Za-z]+)/g, (m, w) => (GREEK.indexOf(w) >= 0 ? " " + w.toLowerCase() + " " : " "))
+      .replace(/[{}\\|]/g, " ")
+      .replace(/</g, " is less than ").replace(/>/g, " is greater than ")
+      .replace(/\s=\s|=/g, " equals ").replace(/\s+/g, " ").trim();
+    return t;
+  }
+
+  function speakable(s) {
+    const t = String(s || "");
+    return /\\[A-Za-z(\[)\]|$]|[{}^_]|\|\|/.test(t) ? toSpeech(t.replace(/\|\|/g, " ")) : t;
+  }
+  function plain(s) { return String(s || "").replace(/\\\(|\\\)|\\\[|\\\]/g, "").replace(/\s+/g, " ").trim(); }
+
+  function sentences(s) {
+    const parts = String(s || "").replace(/\s+/g, " ").trim().split(/([.!?;])\s+(?=\S)/);
+    const out = [];
+    for (let i = 0; i < parts.length; i += 2) {
+      const t = (parts[i] + (parts[i + 1] || "")).trim();
+      if (!t) continue;
+      if (out.length && t.split(" ").length < 2 && !/^(part|number)\b/i.test(out[out.length - 1])) out[out.length - 1] += " " + t;
+      else out.push(t);
+    }
+    return out;
+  }
+
+  function labelSpoken(part) {
+    if (!part.label) return "";
+    return /^\d+$/.test(part.label) ? "Number " + part.label + "." : "Part " + part.label + ".";
+  }
+
+  function speechPlan(e, withSteps) {
+    const first = [], again = [];
+    if (e.q && e.q.s) sentences(speakable(e.q.s)).forEach((t) => first.push({ t, k: "q", i: -1 }));
+    e.parts.forEach((p, i) => {
+      const lab = labelSpoken(p);
+      if (p.p && p.p.s) {
+        const ps = sentences(speakable(p.p.s));
+        if (lab && ps.length && !/^(part|number|question|problem)\b/i.test(ps[0])) ps[0] = lab + " " + ps[0];
+        ps.forEach((t) => first.push({ t, k: "p", i }));
+      } else if (lab) {
+        first.push({ t: lab, k: "label", i });
+      }
+      if (withSteps && p.w.length) p.w.forEach((w) => sentences(speakable(w.s)).forEach((t) => first.push({ t, k: "w", i })));
+      if (p.a && p.a.s) {
+        const sa = speakable(p.a.s);
+        const ans = /^answer\b/i.test(sa) ? sa : "Answer: " + sa;
+        const lines = sentences(ans);
+        lines.forEach((t) => first.push({ t, k: "a", i }));
+        if (lab) again.push({ t: lab, k: "label", i });
+        lines.forEach((t) => again.push({ t, k: "a", i }));
+      }
+    });
+    return { first, again: settings.repeatWhat === "all" ? null : again };
+  }
+
+  // ---------- Reply Parser ("TAG: display || spoken") ----------
   function parseReply(t, done) {
     const text = String(t || "");
     const out = { none: false, q: null, parts: [], found: false };
     if (/^\s*NONE\.?\s*$/i.test(text)) { out.none = done; return out; }
     let cur = null, last = null, tagged = false;
-    // The divider is the last "||" outside math. Bars inside math (|a||b|) are skipped.
+
     const field = (raw) => {
       let depth = 0, cut = -1;
       for (let i = 0; i < raw.length; i++) {
@@ -973,6 +1039,7 @@ window.MathJax = {
       }
       return cut < 0 ? { d: raw.trim(), s: "" } : { d: raw.slice(0, cut).trim(), s: raw.slice(cut + 2).trim() };
     };
+
     const newPart = (label) => { cur = { label: label || "", p: null, w: [], a: null }; out.parts.push(cur); return cur; };
     text.split("\n").forEach((line) => {
       if (/^\s*```/.test(line)) return;
@@ -984,7 +1051,7 @@ window.MathJax = {
           if (!out.q) out.q = f; else { out.q.d += " " + f.d; out.q.s = (out.q.s + " " + f.s).trim(); }
           last = out.q;
         } else if (m[1].indexOf("PART") === 0) {
-          newPart(m[2].trim().replace(/^[(\[]+|[.)\]]+$/g, ""));
+          newPart(m[2].trim().replace(/^[(\[]+\vert{}[.)\]]+$/g, ""));
           cur.p = f.d || f.s ? f : null;
           last = cur.p;
         } else if (m[1] === "W") {
@@ -1002,15 +1069,16 @@ window.MathJax = {
       }
     });
     if (!tagged && done && text.trim()) { newPart(""); cur.a = { d: text.trim(), s: "" }; }
-    const fix = (f) => { if (!f) return; f.d = delimitMath(f.d); if (!f.s) f.s = toSpeech(f.d); };    fix(out.q);
+    const fix = (f) => { if (!f) return; f.d = delimitMath(f.d); if (!f.s) f.s = toSpeech(f.d); };
+    fix(out.q);
     out.parts.forEach((p) => { fix(p.p); p.w.forEach(fix); fix(p.a); });
-      out.tagged = tagged;
+    out.tagged = tagged;
     out.found = !!(out.q || out.parts.length);
     return out;
   }
   function entryFrom(p) { return { q: p.q, parts: p.parts, ts: Date.now() }; }
 
-  // ---------- Google HD voice (Chirp 3 HD) ----------
+  // ---------- Google HD Voice ----------
   const gCache = new Map();
   let gNoVolume = false;
   function monthKey() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
@@ -1025,11 +1093,10 @@ window.MathJax = {
     if (e.code === "cap") return "Google voice paused to stay in the free tier this month.";
     if (e.code === "network") return "Couldn't reach Google. Check your connection.";
     const m = String(e.msg || ""), st = String(e.status || "");
-    if (/API key not valid|API_KEY_INVALID/i.test(m)) return "Google says that key isn't valid. Copy it again from the Credentials page.";
-    if (/referer|referrer/i.test(m)) return "Google blocked this site for that key. In the key's Website restrictions, add https://whereami-toaa.github.io/*";
-    if (/has not been used|is disabled|SERVICE_DISABLED|not been enabled/i.test(m)) return "Text-to-Speech isn't enabled for that project yet. Enable it, wait a minute, then test again.";
-    if (/billing/i.test(m)) return "Billing isn't turned on for that Google project yet.";
-    if (/not authorized|API_KEY_SERVICE_BLOCKED|blocked/i.test(m)) return "That key isn't allowed to use Text-to-Speech. Check the key's API restrictions.";
+    if (/API key not valid|API_KEY_INVALID/i.test(m)) return "Google rejected that API key.";
+    if (/referer|referrer/i.test(m)) return "Google blocked this site for that key. Check Website restrictions.";
+    if (/has not been used|is disabled|SERVICE_DISABLED|not been enabled/i.test(m)) return "Cloud Text-to-Speech API isn't enabled for that project yet.";
+    if (/billing/i.test(m)) return "Billing isn't enabled on that Google Cloud project.";
     if (e.http === 429 || st === "RESOURCE_EXHAUSTED") return "Google is rate limiting. Wait a moment.";
     return "Google said: " + (m || "error " + e.http);
   }
@@ -1039,7 +1106,7 @@ window.MathJax = {
     const voice = settings.gVoice || DEF.gVoice;
     let res;
     try {
-      res = await fetch("https://texttospeech.googleapis.com/v1/text:synthesize?key=" + encodeURIComponent(String(settings.gKey).trim()), {
+      res = await fetch("[https://texttospeech.googleapis.com/v1/text:synthesize?key=](https://texttospeech.googleapis.com/v1/text:synthesize?key=)" + encodeURIComponent(String(settings.gKey).trim()), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ input: { text }, voice: { languageCode: voice.slice(0, 5), name: voice }, audioConfig })
@@ -1047,7 +1114,7 @@ window.MathJax = {
     } catch (e) { throw { code: "network" }; }
     if (!res.ok) {
       let msg = "", status = "";
-      try { const j = await res.json(); msg = (j.error && j.error.message) || ""; status = (j.error && j.error.status) || ""; } catch (e) { /* not json */ }
+      try { const j = await res.json(); msg = (j.error && j.error.message) || ""; status = (j.error && j.error.status) || ""; } catch (e) {}
       throw { code: "google", http: res.status, msg, status };
     }
     const j = await res.json();
@@ -1084,18 +1151,18 @@ window.MathJax = {
   function gWarn(e) {
     if (Date.now() - state.gWarnAt < 20000) return;
     state.gWarnAt = Date.now();
-    toast(gErrorText(e) + " Using the phone voice for now.", "warn", 6000);
+    toast(gErrorText(e) + " Using phone voice for now.", "warn", 5500);
   }
   function gPrefetch(chunks) {
-    chunks.slice(1).forEach((c) => gSynth(c).catch(() => {}));
+    chunks.slice(1).forEach((c) => gSynth(c).catch(() => {}
+));
     const list = curList();
     for (let k = 1; k <= 2; k++) {
       const it = list[reader.idx + k] || (reader.pass < reader.passes ? (reader.repeat || reader.items)[reader.idx + k - list.length] : null);
       if (it && it.t) chunkTerms(it.t).forEach((c) => gSynth(c).catch(() => {}));
     }
   }
-  // Split a spoken equation into terms so each number gets its own beat:
-  // "12 minus 2 I sub 1 equals 0" -> "12" / "minus 2 I sub 1" / "equals 0".
+
   const TERM_SPLIT = /\s+(?=(?:plus|minus|equals|times|divided by|over|is less than|is greater than|is at least|is at most|is approximately|approximately)\b)/i;
   function chunkTerms(t) {
     const text = String(t || "").trim();
@@ -1111,19 +1178,20 @@ window.MathJax = {
     return out.length ? out : [text];
   }
 
-  // ---------- reader: line by line, with pauses, repeats and a transport ----------
-  const reader = { items: [], repeat: null, final: true, idx: 0, cur: 0, pass: 1, passes: 1, state: "idle", id: 0, timer: 0, guard: 0, u: null, now: "", nowPart: null, owner: null, lineStart: 0, endedAt: 0, again: false };
+  // ---------- Reader Engine (with iOS Safari Keep-Alive Heartbeat) ----------
+  const reader = { items: [], repeat: null, final: true, idx: 0, cur: 0, pass: 1, passes: 1, state: "idle", id: 0, timer: 0, guard: 0, keepAlive: 0, u: null, now: "", nowPart: null, owner: null, lineStart: 0, endedAt: 0, again: false };
   function curList() { return reader.pass === 1 ? reader.items : (reader.repeat || reader.items); }
   function rActive() { return reader.state !== "idle"; }
   function rHalt() {
     reader.id++;
     clearTimeout(reader.timer);
     clearTimeout(reader.guard);
+    clearInterval(reader.keepAlive);
     const s = window.speechSynthesis;
-    if (s) { try { s.cancel(); } catch (e) { /* ignore */ } }
+    if (s) { try { s.cancel(); } catch (e) {} }
     gAudio.onended = null;
     gAudio.onerror = null;
-    try { gAudio.pause(); } catch (e) { /* ignore */ }
+    try { gAudio.pause(); } catch (e) {}
   }
   function rStart(items, repeat, final, passes, owner) {
     rHalt();
@@ -1135,12 +1203,6 @@ window.MathJax = {
     reader.owner = owner; reader.now = ""; reader.nowPart = null; reader.again = false;
     reader.state = "waiting";
     rGo();
-  }
-  function rUpdate(items, repeat, final) {
-    reader.items = items.slice();
-    reader.repeat = repeat ? repeat.slice() : null;
-    reader.final = final;
-    if (reader.state === "waiting") rGo(); else paintPlayer();
   }
   function rGo() {
     if (reader.state === "paused" || reader.state === "idle") return;
@@ -1165,7 +1227,7 @@ window.MathJax = {
     }
     reader.cur = reader.idx;
     const item = list[reader.idx];
-    speakLine(item, () => { reader.idx = reader.cur + 1; gap(rGo, item.k === "label" ? 250 : settings.pauseMs); });
+    speakLine(item, () => { reader.idx = reader.cur + 1; gap(rGo, item.k === "label" ? 240 : settings.pauseMs); });
   }
   function gap(fn, ms) {
     const my = ++reader.id;
@@ -1189,6 +1251,7 @@ window.MathJax = {
         if (done || my !== reader.id) return;
         done = true;
         clearTimeout(reader.guard);
+        clearInterval(reader.keepAlive);
         if (ci >= chunks.length) { after(); return; }
         const my2 = ++reader.id;
         reader.timer = setTimeout(() => { if (my2 === reader.id) step(); }, settings.termPauseMs);
@@ -1201,14 +1264,15 @@ window.MathJax = {
   }
   function blockedNotice() {
     rFinish(true);
-    toast("Tap play to hear the answer. Your phone needs one tap before it can talk.", null, 5000);
+    toast("Tap play to hear the answer. Your browser needs one tap to unlock audio.", null, 5000);
   }
   function speakGoogle(text, my, finish) {
+    ensureWebAudioGain();
+    syncAudioVolume();
     gSynth(text).then((url) => {
       if (my !== reader.id) return;
       gAudio.onended = () => { if (my === reader.id) finish(); };
       gAudio.onerror = () => { if (my === reader.id) speakDevice(text, my, finish); };
-      try { gAudio.volume = Math.max(0, Math.min(1, settings.volume)); } catch (e) { /* iPhone ignores this */ }
       gAudio.src = url;
       const pr = gAudio.play();
       if (pr && pr.catch) pr.catch((err) => {
@@ -1230,7 +1294,7 @@ window.MathJax = {
     let u;
     try { u = new SpeechSynthesisUtterance(text); } catch (e) { reader.timer = setTimeout(finish, 600); return; }
     const v = pickVoice();
-    try { if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = "en-US"; } } catch (e) { /* voice not settable */ }
+    try { if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = "en-US"; } } catch (e) {}
     u.rate = settings.rate;
     u.volume = settings.volume;
     u.onstart = () => { started = true; };
@@ -1240,15 +1304,21 @@ window.MathJax = {
       const reason = String(ev && ev.error || "");
       if (/not-allowed|audio-busy|synthesis-unavailable|synthesis-failed/i.test(reason)) {
         blockedNotice();
-      } else if (/interrupted|canceled/i.test(reason)) {
-        // Pausing or skipping cancels utterances intentionally.
-      } else {
-        toast("The device voice failed. Try Test in Settings or choose another voice.", "warn", 6000);
+      } else if (!/interrupted|canceled/i.test(reason)) {
+        toast("Device voice encountered an error. Try Test in Settings.", "warn", 5000);
         rFinish(true);
       }
     };
     reader.u = u;
     try { if (s.paused) s.resume(); s.speak(u); } catch (e) { reader.timer = setTimeout(finish, 600); return; }
+
+    // iOS Safari Keep-Alive: prevents WebKit from freezing utterances > 12s
+    clearInterval(reader.keepAlive);
+    reader.keepAlive = setInterval(() => {
+      if (my !== reader.id || reader.state !== "speaking") { clearInterval(reader.keepAlive); return; }
+      try { if (s.paused) s.resume(); } catch (e) {}
+    }, 5000);
+
     const words = text.split(/\s+/).length;
     const est = 1200 + (words * 520) / Math.max(0.4, settings.rate);
     clearTimeout(reader.guard);
@@ -1325,7 +1395,7 @@ window.MathJax = {
       document.querySelectorAll("#answers .part").forEach((el) => {
         const on = active && String(el.dataset.i) === hl;
         el.classList.toggle("reading", on);
-        if (on && el.scrollIntoView) { try { el.scrollIntoView({ block: "nearest" }); } catch (e) { /* ignore */ } }
+        if (on && el.scrollIntoView) { try { el.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (e) {} }
       });
     }
     $("brackets").classList.toggle("locked", active && settings.waitForVoice && state.live && settings.auto);
@@ -1343,58 +1413,106 @@ window.MathJax = {
       const more = !reader.final && reader.pass === 1 ? "+" : "";
       const line = reader.again ? "Repeating" : "Line " + Math.min(Math.max(reader.cur, 0) + 1, Math.max(n, 1)) + " of " + n + more;
       const pass = reader.passes > 1 ? (reader.pass === 1 ? "First read" : "Repeat " + (reader.pass - 1) + " of " + (reader.passes - 1)) + " · " : "";
-      status = (st === "paused" ? "Paused · " : "") + (st === "waiting" && !reader.final && reader.idx >= n ? "Waiting for the answer · " : "") + pass + line;
+      status = (st === "paused" ? "Paused · " : "") + (st === "waiting" && !reader.final && reader.idx >= n ? "Waiting for answer · " : "") + pass + line;
     }
     $("playStatus").textContent = status;
     vis("nowLine", active && !!reader.now);
     $("nowLine").textContent = active ? reader.now : "";
   }
 
-  // ---------- rendering ----------
+  // ---------- Incremental DOM Patching (Eliminates Streaming Flicker) ----------
   let renderKey = "";
   function setTag(kind, text) {
     const tag = $("tag");
     tag.className = "tag" + (kind ? " is-" + kind : "");
     tag.textContent = text;
   }
+
   function renderEntry(e, final) {
     const key = JSON.stringify([e.q, e.parts, !!final]);
     if (key === renderKey) return;
     renderKey = key;
     lastHighlight = "x";
-    clearMath([$("qBox"), $("answers"), $("stepsList")]);
+
+    // 1. Update Question Box in-place
     const qb = $("qBox");
-    qb.hidden = !(e.q && e.q.d);
-    fillMath($("qText"), e.q ? e.q.d : "");
+    const hasQ = !!(e.q && e.q.d);
+    qb.hidden = !hasQ;
+    if (hasQ) fillMath($("qText"), e.q.d);
+
+    // 2. Patch Parts List incrementally without wiping existing DOM nodes
     const box = $("answers");
-    box.innerHTML = "";
     box.className = "answers" + (final ? "" : " streaming");
-    e.parts.forEach((p, i) => {
-      const el = document.createElement("div");
-      el.className = "part";
-      el.dataset.i = String(i);
-      if (p.label || p.p) {
-        const pt = document.createElement("div");
-        pt.className = "ptext";
-        if (p.label) {
-          const lab = document.createElement("span");
-          lab.className = "plabel";
-          lab.textContent = p.label;
-          pt.appendChild(lab);
-        }
-        if (p.p) {
-          const body = document.createElement("span");
-          pt.appendChild(body);
-          fillMath(body, p.p.d);
-        }
-        el.appendChild(pt);
-      }
-      const an = document.createElement("div");
-      if (p.a) { an.className = "pans"; fillMath(an, p.a.d); }
-      else { an.className = "pans pending"; an.textContent = final ? "No answer" : "Solving"; }
-      el.appendChild(an);
-      box.appendChild(el);
+    // Remove placeholder working-line or quiet message if present
+    Array.from(box.children).forEach((ch) => {
+      if (!ch.classList.contains("part")) ch.remove();
     });
+
+    const existingParts = box.querySelectorAll(":scope > .part");
+    for (let k = existingParts.length - 1; k >= e.parts.length; k--) {
+      existingParts[k].remove();
+    }
+
+    e.parts.forEach((p, i) => {
+      let el = box.children[i];
+      if (!el || !el.classList.contains("part")) {
+        el = document.createElement("div");
+        el.className = "part";
+        box.appendChild(el);
+      }
+      el.dataset.i = String(i);
+
+      // Part header / prompt
+      let pt = el.querySelector(":scope > .ptext");
+      if (p.label || p.p) {
+        if (!pt) {
+          pt = document.createElement("div");
+          pt.className = "ptext";
+          el.prepend(pt);
+        }
+        let lab = pt.querySelector(":scope > .plabel");
+        if (p.label) {
+          if (!lab) {
+            lab = document.createElement("span");
+            lab.className = "plabel";
+            pt.prepend(lab);
+          }
+          if (lab.textContent !== p.label) lab.textContent = p.label;
+        } else if (lab) {
+          lab.remove();
+        }
+        let body = pt.querySelector(":scope > .pbody");
+        if (p.p) {
+          if (!body) {
+            body = document.createElement("span");
+            body.className = "pbody";
+            pt.appendChild(body);
+          }
+          fillMath(body, p.p.d);
+        } else if (body) {
+          body.remove();
+        }
+      } else if (pt) {
+        pt.remove();
+      }
+
+      // Part answer
+      let an = el.querySelector(":scope > .pans");
+      if (!an) {
+        an = document.createElement("div");
+        el.appendChild(an);
+      }
+      if (p.a) {
+        an.className = "pans";
+        fillMath(an, p.a.d);
+      } else {
+        an.className = "pans pending";
+        delete an.dataset.rawMath;
+        an.textContent = final ? "No answer" : "Solving…";
+      }
+    });
+
+    // 3. Update Worked Steps
     let count = 0;
     const sl = $("stepsList");
     sl.innerHTML = "";
@@ -1419,23 +1537,26 @@ window.MathJax = {
     $("stepsBox").hidden = !count;
     paintPlayer();
   }
+
   function beginAnswer() {
     state.playerReady = false;
     renderKey = "";
     setTag("working", "Reading");
     $("metaText").textContent = "Sending to Claude";
     $("qBox").hidden = true;
+    $("qText").dataset.rawMath = "";
     const box = $("answers");
     box.className = "answers";
     box.innerHTML = "";
     const w = document.createElement("div");
     w.className = "working-line";
-    w.textContent = "Reading the text";
+    w.textContent = "Reading the question…";
     box.appendChild(w);
     $("stepsBox").hidden = true;
     $("stepsBox").open = false;
     paintPlayer();
   }
+
   function showQuiet(msg) {
     renderKey = "";
     $("qBox").hidden = true;
@@ -1444,11 +1565,11 @@ window.MathJax = {
     box.innerHTML = "";
     const p = document.createElement("p");
     p.className = "quiet";
-    p.style.margin = "0";
     p.textContent = msg;
     box.appendChild(p);
     $("stepsBox").hidden = true;
   }
+
   function showError(msg) {
     setTag("error", "Couldn't answer");
     $("metaText").textContent = "";
@@ -1456,9 +1577,11 @@ window.MathJax = {
     state.playerReady = false;
     paintPlayer();
   }
+
   function fmtTime(ts) {
     try { return new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; }
   }
+
   function showSaved(entry, tagText, meta) {
     state.current = entry;
     state.playerReady = true;
@@ -1467,7 +1590,7 @@ window.MathJax = {
     renderEntry(entry, true);
   }
 
-  // ---------- saved answers ----------
+  // ---------- Saved History ----------
   function saveHistory() { if (settings.keepHistory) store.set("history", state.history); }
   function pushHistory(entry) {
     if (!settings.keepHistory) return;
@@ -1493,7 +1616,8 @@ window.MathJax = {
       const tm = document.createElement("span"); tm.className = "h-time"; tm.textContent = h.ts ? fmtTime(h.ts) : "";
       top.append(r, tm);
       const an = document.createElement("span"); an.className = "h-ans";
-      an.textContent = h.parts.map((p) => (p.label ? p.label + ". " : "") + (p.a ? p.a.d : "")).join("   ");
+      const ansRaw = h.parts.map((p) => (p.label ? p.label + ". " : "") + (p.a ? p.a.d : "")).join("   ");
+      fillMath(an, ansRaw);
       b.append(top, an);
       b.addEventListener("click", () => {
         unlock();
@@ -1505,20 +1629,38 @@ window.MathJax = {
       li.appendChild(b);
       ul.appendChild(li);
     });
-    if (list.length) typeset(ul);
   }
 
-  // ---------- images ----------
+  // ---------- Image Capture & Contrast Enhancement ----------
+  function enhanceCanvasContrast(c) {
+    if (!settings.enhanceImage) return c;
+    try {
+      const ctx = c.getContext("2d");
+      const id = ctx.getImageData(0, 0, c.width, c.height);
+      const d = id.data;
+      // Gentle S-curve contrast boost to sharpen pencil/print against paper
+      const contrast = 1.24;
+      const intercept = 128 * (1 - contrast);
+      for (let i = 0; i < d.length; i += 4) {
+        d[i] = Math.min(255, Math.max(0, d[i] * contrast + intercept));
+        d[i + 1] = Math.min(255, Math.max(0, d[i + 1] * contrast + intercept));
+        d[i + 2] = Math.min(255, Math.max(0, d[i + 2] * contrast + intercept));
+      }
+      ctx.putImageData(id, 0, 0);
+    } catch (e) {}
+    return c;
+  }
+
   function fitCanvas(src, w, h) {
-    const scale = Math.min(1, 1568 / Math.max(w, h), Math.sqrt(1150000 / (w * h)));
+    const scale = Math.min(1, 1568 / Math.max(w, h), Math.sqrt(1250000 / (w * h)));
     const c = document.createElement("canvas");
     c.width = Math.max(1, Math.round(w * scale));
     c.height = Math.max(1, Math.round(h * scale));
     c.getContext("2d").drawImage(src, 0, 0, c.width, c.height);
-    return c;
+    return enhanceCanvasContrast(c);
   }
   function toJpeg(c) {
-    return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("encode"))), "image/jpeg", 0.86));
+    return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("encode"))), "image/jpeg", 0.88));
   }
   async function fileCanvas(file) {
     const url = URL.createObjectURL(file);
@@ -1531,7 +1673,6 @@ window.MathJax = {
       URL.revokeObjectURL(url);
     }
   }
-  
   function videoCanvas() {
     const v = $("video");
     if (!state.live || !v.videoWidth) return null;
@@ -1554,40 +1695,58 @@ window.MathJax = {
     });
   }
 
-  // ---------- Claude ----------
-  async function callApi(blob, prompt, onText, signal) {
-    const data = await blobToBase64(blob);
+  // ---------- Anthropic API Client (with Extended Thinking Support) ----------
+  function buildApiBody(content) {
+    const tierObj = TIERS.find((t) => t.id === settings.tier) || TIERS[1];
+    const budget = tierObj.budget || 0;
+    const supportsThinking = /sonnet-4|opus-4|3-7-sonnet/i.test(settings.model);
+    const body = {
+      model: settings.model,
+      system: STUDY_SYSTEM,
+      max_tokens: supportsThinking && budget > 0 ? budget + 4096 : 4096,
+      stream: true,
+      messages: [{ role: "user", content }]
+    };
+    if (supportsThinking && budget > 0) {
+      body.thinking = { type: "enabled", budget_tokens: budget };
+    }
+    return body;
+  }
+
+  async function streamAnthropicRequest(content, onText, signal) {
+    let bodyObj = buildApiBody(content);
     let res;
+    const send = async (payload) => fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      signal,
+      headers: {
+        "x-api-key": settings.apiKey.trim(),
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify(payload)
+    });
+
     try {
-      res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        signal,
-        headers: {
-          "x-api-key": settings.apiKey.trim(),
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-          "anthropic-dangerous-direct-browser-access": "true"
-        },
-        body: JSON.stringify({
-          model: settings.model,
-          system: STUDY_SYSTEM,
-          max_tokens: 4000,
-          stream: true,
-          messages: [{ role: "user", content: [
-            { type: "image", source: { type: "base64", media_type: "image/jpeg", data } },
-            { type: "text", text: prompt }
-          ] }]
-        })
-      });
+      res = await send(bodyObj);
+      // Graceful fallback if a model endpoint rejects the thinking parameter
+      if (!res.ok && res.status === 400 && bodyObj.thinking) {
+        delete bodyObj.thinking;
+        bodyObj.max_tokens = 4096;
+        res = await send(bodyObj);
+      }
     } catch (e) {
       if (e && e.name === "AbortError") throw { code: "cancelled" };
       throw { code: "network" };
     }
+
     if (!res.ok) {
       let msg = "";
-      try { const j = await res.json(); msg = (j && j.error && j.error.message) || ""; } catch (e) { /* not json */ }
+      try { const j = await res.json(); msg = (j && j.error && j.error.message) || ""; } catch (e) {}
       throw { code: "api", status: res.status, message: msg };
     }
+
     const rd = res.body.getReader();
     const dec = new TextDecoder();
     let buf = "", text = "";
@@ -1603,9 +1762,13 @@ window.MathJax = {
           if (!line.startsWith("data:")) continue;
           let ev;
           try { ev = JSON.parse(line.slice(5).trim()); } catch (e) { continue; }
-          if (ev.type === "content_block_delta" && ev.delta && ev.delta.type === "text_delta") {
-            text += ev.delta.text;
-            onText(text);
+          if (ev.type === "content_block_delta" && ev.delta) {
+            if (ev.delta.type === "text_delta") {
+              text += ev.delta.text;
+              onText(text);
+            } else if (ev.delta.type === "thinking_delta" && !text) {
+              setTag("working", "Thinking…");
+            }
           } else if (ev.type === "error") {
             throw { code: "api", status: 529, message: (ev.error && ev.error.message) || "" };
           }
@@ -1618,26 +1781,46 @@ window.MathJax = {
     if (!text.trim()) throw { code: "empty_completion" };
     return text;
   }
+
+  async function callApi(blob, prompt, onText, signal) {
+    const data = await blobToBase64(blob);
+    return streamAnthropicRequest([
+      { type: "image", source: { type: "base64", media_type: "image/jpeg", data } },
+      { type: "text", text: prompt }
+    ], onText, signal);
+  }
+
+  async function callApiCleaned(prompt, diagramBlobs, onText, signal) {
+    const content = [];
+    for (const b of (diagramBlobs || [])) {
+      const data = await blobToBase64(b);
+      content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data } });
+    }
+    content.push({ type: "text", text: prompt });
+    return streamAnthropicRequest(content, onText, signal);
+  }
+
   function errorText(e) {
     const c = e && e.code;
     if (c === "api") {
       const s = e.status, m = e.message || "";
       if (s === 401) return "Anthropic rejected that API key. Paste it again in Settings.";
       if (s === 403) return "This API key isn't allowed to use that model. Try another model in Settings.";
-      if (s === 429) return "Too many requests in a row. Wait a few seconds and try again.";
-      if (s === 529 || s === 503) return "Claude is overloaded right now. Try again in a moment.";
-      if (/credit|billing|balance/i.test(m)) return "Your Anthropic account is out of credit. Add some at console.anthropic.com.";
-      return m ? "Anthropic said: " + m : "The request failed (error " + s + "). Try again.";
+      if (s === 404) return "Model endpoint not found. Switch models in Settings.";
+      if (s === 429) return "Rate limit reached. Wait a few seconds and try again.";
+      if (s === 529 || s === 503) return "Claude is temporarily overloaded. Try again in a moment.";
+      if (/credit|billing|balance/i.test(m)) return "Your Anthropic account is out of credit. Top up at console.anthropic.com.";
+      return m ? "Anthropic said: " + m : "Request failed (HTTP " + s + "). Try again.";
     }
     switch (c) {
       case "network": return "No connection to Anthropic. Check your internet and try again.";
-      case "not_granted": return "Claude access is off for this page. Turn it on from the page's Permissions menu, then try again.";
+      case "not_granted": return "Claude access is off for this page. Enable it in Permissions.";
       case "sampling_disabled": return "Claude isn't available on this account.";
-      case "images_unavailable": return "This view can't send photos to Claude. Open Readout in the Claude app or on claude.ai.";
+      case "images_unavailable": return "This view can't send photos to Claude.";
       case "image_rejected": return "Claude couldn't open that photo. Take another one.";
       case "rate_limited": return "You've hit a usage limit. Wait a bit, then try again.";
-      case "session_expired": return "Sign in to Claude again, then try again.";
-      case "refused": return "Claude didn't answer this one.";
+      case "session_expired": return "Sign in to Claude again, then retry.";
+      case "refused": return "Claude declined to answer this item.";
       case "empty_completion": return "No answer came back. Try a clearer, closer shot.";
       default: return "Something went wrong reaching Claude. Try again.";
     }
@@ -1646,9 +1829,6 @@ window.MathJax = {
   function modelName() { const m = MODELS.find((x) => x.id === settings.model); return m ? m.name : settings.model; }
   function tierName(id) { const t = TIERS.find((x) => x.id === id); return t ? t.name : "Claude"; }
 
-  // ---------- actual refusal detection ----------
-  // A quoted exam heading, a practice question, or steps mentioning "can't factor"
-  // are not refusals. Inspect assistant answer lines, not the transcribed Q/PART.
   function isRefusal(text) {
     const lines = String(text || "").replace(/[\u2018\u2019]/g, "'").split(/\r?\n/)
       .filter((line) => !/^\s*(?:Q\s*:|PART\s+[^:]{1,16}\s*:)/i.test(line));
@@ -1659,12 +1839,11 @@ window.MathJax = {
       /\b(?:i\s+)?(?:can'?t|cannot|won'?t|will\s+not)\s+(?:\S+\s+){0,9}?(?:give|provide|share)\s+(?:\S+\s+){0,5}?(?:answer|solution)\b/i,
       /\b(?:leave|keep)\s+the\s+(?:final\s+)?answer\s+to\s+you\b/i,
       /\b(?:rather\s+than|instead\s+of)\s+(?:\S+\s+){0,8}?(?:solving|answering|providing\s+(?:the\s+)?answer)\b/i,
-      /\b(?:instead|rather\s+than)\b[^.!?\n]{0,110}\b(?:similar|different)\s+(?:practice\s+)?(?:problem|question)\b/i,
       /\bhere(?:'s|\s+is)\s+(?:a|an|the)\s+similar\s+(?:practice\s+)?(?:problem|question)\b/i
     ].some((pattern) => pattern.test(reply));
   }
 
-  // ---------- OCR fallback for genuinely unreadable or malformed responses ----------
+  // ---------- On-Device OCR Fallback ----------
   let tessLoad = null;
   function loadTesseract() {
     if (window.Tesseract) return Promise.resolve();
@@ -1685,18 +1864,15 @@ window.MathJax = {
       const r = await worker.recognize(canvas);
       return r.data || {};
     } finally {
-      try { await worker.terminate(); } catch (e) { /* ignore */ }
+      try { await worker.terminate(); } catch (e) {}
     }
   }
-  // Keep assessment wording intact so the tutor can distinguish archived practice from a live assessment.
   const HEADER_FIELD_RE = /^\s*(name|student\s*(id|number)|id|date|time|period|class|section|course|instructor|professor|score|points?|marks?|grade)\s*[:_\-]/i;
   function cleanExamLine(line) {
     let t = String(line || "").replace(/\s*\(\s*\d+\s*(?:points?|pts?|marks?)\s*\)/gi, "").replace(/\s{2,}/g, " ").trim();
-    if (!t) return null;
-    if (HEADER_FIELD_RE.test(t)) return null;
+    if (!t || HEADER_FIELD_RE.test(t)) return null;
     return t;
   }
-  // Find high-detail regions that OCR did NOT label as text = diagrams/figures.
   function findDiagramCrops(canvas, textBoxes, maxCrops) {
     const W = 160, H = 120, CW = 4, CH = 4;
     const GW = Math.floor(W / CW), GH = Math.floor(H / CH);
@@ -1759,13 +1935,11 @@ window.MathJax = {
     }
     return out;
   }
-  // Full pipeline: OCR -> clean exam lines -> crop diagrams -> { text, blobs }
   async function ocrPipeline(canvas) {
     const data = await ocrRecognize(canvas);
     const lines = (data.lines || []).filter((l) => l.confidence == null || l.confidence >= 35);
     const cleaned = lines.map((l) => cleanExamLine(String(l.text || ""))).filter((l) => l !== null);
     let ocrText = cleaned.join("\n").trim();
-    // Some Tesseract builds return aggregate text even when line segmentation is unavailable.
     if (!ocrText && data.text) {
       ocrText = String(data.text).split(/\r?\n/)
         .map((line) => cleanExamLine(line)).filter((line) => line !== null).join("\n").trim();
@@ -1774,83 +1948,17 @@ window.MathJax = {
     const boxes = (data.lines || []).map((l) => l.bbox).filter(Boolean);
     const crops = findDiagramCrops(canvas, boxes, 2);
     const blobs = [];
-    for (const cc of crops) { try { blobs.push(await toJpeg(cc)); } catch (e) { /* skip crop */ } }
+    for (const cc of crops) { try { blobs.push(await toJpeg(cc)); } catch (e) {} }
     return { text: ocrText, blobs };
   }
   function buildCleanedPrompt(ocrText) {
     return buildPrompt() +
-      "\n\nThe photo was difficult to read, so here is an on-device OCR transcription. Titles and assessment wording are intentionally preserved. Use the text and any attached figures according to the user-selected study context; an 'Exam' or 'Midterm' heading by itself is not evidence of an active assessment:\n---\n" +
+      "\n\nOn-device OCR transcription of the photographed page (solve according to user-selected study context and keep the required TAG: display || spoken format):\n---\n" +
       ocrText +
-      "\n---\n" +
-      "Any attached image is a crop intended to show a figure or diagram from the same page. Keep the response in the required tagged format.";
-  }
-  // Same as callApi but sends cleaned text + diagram crops instead of the photo.
-  async function callApiCleaned(prompt, diagramBlobs, onText, signal) {
-    const content = [];
-    for (const b of (diagramBlobs || [])) {
-      const data = await blobToBase64(b);
-      content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data } });
-    }
-    content.push({ type: "text", text: prompt });
-    let res;
-    try {
-      res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        signal,
-        headers: {
-          "x-api-key": settings.apiKey.trim(),
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-          "anthropic-dangerous-direct-browser-access": "true"
-        },
-        body: JSON.stringify({
-          model: settings.model,
-          system: STUDY_SYSTEM,
-          max_tokens: 4000,
-          stream: true,
-          messages: [{ role: "user", content }]
-        })
-      });
-    } catch (e) {
-      if (e && e.name === "AbortError") throw { code: "cancelled" };
-      throw { code: "network" };
-    }
-    if (!res.ok) {
-      let msg = "";
-      try { const j = await res.json(); msg = (j && j.error && j.error.message) || ""; } catch (e) { /* not json */ }
-      throw { code: "api", status: res.status, message: msg };
-    }
-    const rd = res.body.getReader();
-    const dec = new TextDecoder();
-    let buf = "", text = "";
-    try {
-      for (;;) {
-        const { value, done } = await rd.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        let i;
-        while ((i = buf.indexOf("\n")) >= 0) {
-          const line = buf.slice(0, i).trim();
-          buf = buf.slice(i + 1);
-          if (!line.startsWith("data:")) continue;
-          let ev;
-          try { ev = JSON.parse(line.slice(5).trim()); } catch (e) { continue; }
-          if (ev.type === "content_block_delta" && ev.delta && ev.delta.type === "text_delta") {
-            text += ev.delta.text;
-            onText(text);
-          } else if (ev.type === "error") {
-            throw { code: "api", status: 529, message: (ev.error && ev.error.message) || "" };
-          }
-        }
-      }
-    } catch (e) {
-      if (e && e.name === "AbortError") throw { code: "cancelled", text };
-      throw e;
-    }
-    if (!text.trim()) throw { code: "empty_completion" };
-    return text;
+      "\n---";
   }
 
+  // ---------- Main Question / Vision Flow ----------
   async function ask(trigger, file) {
     if (state.busy) return;
     if (state.backend === "pending") { toast("Connecting to Claude. Try again in a second."); return; }
@@ -1860,15 +1968,14 @@ window.MathJax = {
     let canvas;
     try { canvas = file ? await fileCanvas(file) : videoCanvas(); }
     catch (e) { toast("That photo couldn't be opened. Try another one.", "warn"); return; }
-    if (!canvas) { toast("The camera is still starting."); return; }
+    if (!canvas) { toast("Camera is still starting."); return; }
     let blob;
-    try { blob = await toJpeg(canvas); } catch (e) { toast("That photo couldn't be prepared. Try again.", "warn"); return; }
+    try { blob = await toJpeg(canvas); } catch (e) { toast("Photo couldn't be prepared. Try again.", "warn"); return; }
     if (file) showStill(blob);
 
     rStop();
     const run = ++state.run;
     state.busy = true;
-    state.refusalDetected = false;
     state.ctl = new AbortController();
     setBusy(true);
     flashBrackets();
@@ -1877,25 +1984,29 @@ window.MathJax = {
 
     const t0 = performance.now();
     const owner = "run" + run;
+    let lastStreamPaint = 0;
     const onUpdate = (text, done) => {
+      const now = performance.now();
+      if (!done && now - lastStreamPaint < 55) return null; // Throttle layout updates to ~18fps during streaming
+      lastStreamPaint = now;
       const pd = parseReply(text, done);
       if (pd.found) { renderEntry(pd, done); if (!done) setTag("working", "Answering"); }
       return pd;
     };
 
     try {
-            let text, by;
+      let text, by;
       let currentPrompt = buildPrompt();
       let cleanPrompt = "";
       let attempt = 0;
       const maxRetries = 1;
-      let mode = "photo"; // "photo" | "clean"
-      let ocr = null;     // { text, blobs } from the on-device pipeline
+      let mode = "photo";
+      let ocr = null;
 
       for (;;) {
         if (mode === "clean" && ocr && ocr.text && cleanPrompt) {
           text = await callApiCleaned(cleanPrompt, ocr.blobs, (t) => onUpdate(t, false), state.ctl.signal);
-          by = modelName() + " · clean text";
+          by = modelName() + " · OCR";
         } else if (state.backend === "sample") {
           const r = await state.sample(currentPrompt, {
             images: blob,
@@ -1905,14 +2016,12 @@ window.MathJax = {
           });
           text = r.text;
           by = tierName(r.modelTierApplied || settings.tier);
-          if (r.truncated) toast("The answer was cut short. Try framing just one question.");
+          if (r.truncated) toast("Answer was cut short. Frame one question at a time.");
         } else {
           text = await callApi(blob, currentPrompt, (t) => onUpdate(t, false), state.ctl.signal);
           by = modelName();
         }
 
-        // Handle explicit refusals separately from formatting/OCR failures. Do not
-        // keep re-sending a refused request: that just repeats the same OCR/retry loop.
         const trimmed = String(text || "").trim();
         const noneOnly = /^\s*NONE\.?\s*$/i.test(trimmed);
         const parsed = parseReply(text, true);
@@ -1921,74 +2030,64 @@ window.MathJax = {
           const visibleText = trimmed.length > 1400 ? trimmed.slice(0, 1400) + "…" : trimmed;
           setTag("study", "Study guidance");
           $("metaText").textContent = elapsed + " s · " + by;
-          showQuiet(visibleText + "\n\nReadout stopped instead of repeatedly rescanning. In Settings, verify the study context and extra instructions are accurate. Model refusals cannot always be changed by this app.");
+          showQuiet(visibleText + "\n\nCheck Settings → Study context if you are working on practice or past exam material.");
           state.playerReady = false;
-          state.refusalDetected = false;
           paintPlayer();
           return;
         }
 
-        // parseReply already supports normal prose as a readable, speakable answer.
-        // Do NOT try OCR just because Claude didn't use our Q/W/A line format.
         const unreadable = /\b(?:can'?t|cannot|couldn'?t|unable to)\s+(?:\S+\s+){0,4}?(?:read|see|make out|transcribe)\b/i.test(trimmed) ||
           /\b(?:image|photo|text)\s+(?:is|was|appears)\s+(?:too\s+)?(?:blurry|unreadable|illegible)\b/i.test(trimmed);
         const hasAnswer = parsed.parts.some((part) => part.a && part.a.d);
         const usableProse = !parsed.tagged && !unreadable && !!trimmed;
         const malformed = !noneOnly && !usableProse && (!parsed.tagged || !hasAnswer || unreadable);
+
         if (malformed) {
           if (attempt >= maxRetries) {
             showError("Readout couldn't extract a complete answer. Try a closer, sharper photo with one question in view.");
-            state.refusalDetected = false;
             return;
           }
           attempt++;
           if (state.backend === "api") {
-            toast("The reply wasn't in Readout format — trying one OCR pass…", null, 2800);
+            toast("Running on-device OCR pass…", null, 2600);
             setTag("working", "Scanning");
             $("metaText").textContent = "OCR + diagram crop";
             try { ocr = await ocrPipeline(canvas); } catch (e) { ocr = null; }
             if (!ocr || !ocr.text) {
-              showError("Readout couldn't extract readable text from this photo. Move closer, improve the lighting, and keep one question in frame.");
-              state.refusalDetected = false;
+              showError("Couldn't extract readable text from this photo. Move closer and keep one question in the brackets.");
               return;
             }
             mode = "clean";
             cleanPrompt = buildCleanedPrompt(ocr.text);
-            toast("Retrying once with extracted text" + (ocr.blobs.length ? " + diagram" : "") + "…", null, 2400);
           } else {
-            currentPrompt = buildPrompt() + "\n\nFormatting reminder: use Q, PART, W, and A tags where possible. Use the selected study context; never classify a document solely from its printed heading.";
-            toast("Retrying once with a clearer response format…", null, 2400);
+            currentPrompt = buildPrompt() + "\n\nUse Q, PART, W, and A tags.";
           }
-          state.refusalDetected = false;
           rStop();
           renderKey = "";
           beginAnswer();
           continue;
         }
-
-        break; // clean answer
+        break;
       }
 
       const p = onUpdate(text, true);
       const secs = ((performance.now() - t0) / 1000).toFixed(1);
-      if (p.found) {
+      if (p && p.found) {
         state.current = entryFrom(p);
         pushHistory(state.current);
         setTag("answer", "Answer");
         $("metaText").textContent = secs + " s · " + by + (attempt > 0 ? " · retry " + attempt : "");
         state.playerReady = true;
         paintPlayer();
-        // Never speak streamed fragments: a partial answer can be discarded, and
-        // an async API request may lose the user gesture needed for mobile TTS.
         if (settings.voiceOn && state.unlocked && document.visibilityState !== "hidden") {
           playCurrent(settings.repeats);
         } else if (settings.voiceOn) {
-          toast("Answer ready — tap play to hear it.", null, 5000);
+          toast("Answer ready — tap play to hear it.", null, 4500);
         }
       } else {
         setTag("", "No text");
         $("metaText").textContent = secs + " s · " + by;
-        showQuiet("Nothing to answer here. Get closer so the text fills the brackets, then try again.");
+        showQuiet("Nothing to answer here. Move closer so the question fills the brackets.");
         state.playerReady = false;
         paintPlayer();
       }
@@ -2010,7 +2109,7 @@ window.MathJax = {
       updateHint();
     }
   }
-  // ---------- busy / brackets ----------
+
   function setBusy(b) {
     const s = $("shutter");
     s.classList.toggle("busy", b);
@@ -2028,7 +2127,7 @@ window.MathJax = {
     $("prog").style.strokeDashoffset = String(226.2 * (1 - Math.max(0, Math.min(1, p))));
   }
 
-  // ---------- camera ----------
+  // ---------- Camera, Hardware Zoom & Tap-to-Focus ----------
   function updateMode() {
     const live = state.live;
     $("video").hidden = !live;
@@ -2041,10 +2140,14 @@ window.MathJax = {
     $("autoChip").setAttribute("aria-pressed", String(settings.auto));
     $("autoField").hidden = !autoOk;
     $("autoSec").hidden = !autoOk;
-    if (!live) $("torchBtn").hidden = true;
+    if (!live) {
+      $("torchBtn").hidden = true;
+      $("zoomBtn").hidden = true;
+    }
     updateHint();
     paintPlayer();
   }
+
   let autoHint = "";
   function setAutoHint(t) { if (t !== autoHint) { autoHint = t; updateHint(); } }
   function updateHint() {
@@ -2057,11 +2160,12 @@ window.MathJax = {
     else t = "Frame the text, then tap the shutter";
     $("hintText").textContent = t;
   }
+
   async function startCamera() {
     if (!CAN_LIVE) { state.live = false; updateMode(); return; }
     stopCamera();
     $("phTitle").textContent = "Starting camera";
-    $("phSub").textContent = "Allow camera access when your phone asks.";
+    $("phSub").textContent = "Allow camera access when prompted.";
     $("camRetry").hidden = true;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -2076,30 +2180,79 @@ window.MathJax = {
       auto.prev = null;
       rearmAuto(true);
       updateMode();
-      checkTorch();
+      checkCameraCapabilities();
       keepAwake();
     } catch (e) {
       state.live = false;
       updateMode();
       $("phTitle").textContent = "Camera is off";
       $("phSub").textContent = e && e.name === "NotAllowedError"
-        ? "Camera access was blocked. Allow it in your browser settings, or tap the shutter to take single photos."
-        : "The live camera didn't start. Tap the shutter to take single photos instead.";
+        ? "Camera access was blocked. Allow it in browser settings, or tap the shutter to snap single photos."
+        : "Live camera unavailable. Tap the shutter to take single photos instead.";
       $("camRetry").hidden = false;
     }
   }
+
   function stopCamera() {
     if (state.stream) state.stream.getTracks().forEach((t) => t.stop());
     state.stream = null;
   }
-  function checkTorch() {
+
+  function checkCameraCapabilities() {
     const t = state.stream && state.stream.getVideoTracks()[0];
     let caps = null;
     try { caps = t && t.getCapabilities ? t.getCapabilities() : null; } catch (e) { caps = null; }
     $("torchBtn").hidden = !(caps && caps.torch);
     state.torch = false;
     $("torchBtn").setAttribute("aria-pressed", "false");
+
+    // Hardware optical/digital zoom support
+    if (caps && caps.zoom && typeof caps.zoom.max === "number" && caps.zoom.max > 1.2) {
+      const min = Math.max(1, caps.zoom.min || 1);
+      const max = caps.zoom.max;
+      const levels = [min];
+      if (max >= 1.5) levels.push(1.5);
+      if (max >= 2) levels.push(2);
+      if (max >= 3) levels.push(3);
+      state.zoomLevels = levels;
+      state.zoomIdx = 0;
+      $("zoomBtn").textContent = levels[0] + "×";
+      $("zoomBtn").hidden = levels.length < 2;
+    } else {
+      $("zoomBtn").hidden = true;
+    }
   }
+
+  async function cycleZoom() {
+    const t = state.stream && state.stream.getVideoTracks()[0];
+    if (!t || state.zoomLevels.length < 2) return;
+    state.zoomIdx = (state.zoomIdx + 1) % state.zoomLevels.length;
+    const z = state.zoomLevels[state.zoomIdx];
+    try {
+      await t.applyConstraints({ advanced: [{ zoom: z }] });
+      $("zoomBtn").textContent = z + "×";
+    } catch (e) {}
+  }
+
+  // Tap viewfinder to trigger continuous auto-focus pulse & re-arm auto-scanner
+  $("finder").addEventListener("pointerdown", (e) => {
+    if (!state.live || e.target.closest("button")) return;
+    const rect = $("finder").getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    const ring = $("focusRing");
+    ring.style.left = x + "px";
+    ring.style.top = y + "px";
+    ring.classList.add("active");
+    setTimeout(() => ring.classList.remove("active"), 650);
+
+    rearmAuto(true);
+    const t = state.stream && state.stream.getVideoTracks()[0];
+    if (!t || !t.applyConstraints) return;
+    try {
+      t.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+    } catch (err) {}
+  });
+
   async function toggleTorch() {
     const t = state.stream && state.stream.getVideoTracks()[0];
     if (!t) return;
@@ -2107,6 +2260,7 @@ window.MathJax = {
     try { await t.applyConstraints({ advanced: [{ torch: state.torch }] }); } catch (e) { state.torch = false; }
     $("torchBtn").setAttribute("aria-pressed", String(state.torch));
   }
+
   let wake = null;
   async function keepAwake() {
     try { if (navigator.wakeLock && !wake) { wake = await navigator.wakeLock.request("screen"); wake.addEventListener("release", () => { wake = null; }); } } catch (e) { wake = null; }
@@ -2120,17 +2274,14 @@ window.MathJax = {
     }
   });
 
-  // ---------- auto answer: move to new text, hold still, it answers (live camera + own API key) ----------
-  // Motion is measured on a coarse, contrast-normalized grid so hand shake and exposure flicker don't count.
-  // A real move re-arms it; holding still on the new view fires it. While an answer is being read it waits.
+  // ---------- Auto-Answer Motion Detector ----------
   const AW = 64, AH = 48, BW = 16, BH = 12, TICK = 200;
-  const T_STEADY = 0.26;
-  const T_MOVE = 0.36;
-  const T_RUN = 0.9;
+  const T_STEADY = 0.26, T_MOVE = 0.36, T_RUN = 0.9;
   const small = document.createElement("canvas");
   small.width = AW; small.height = AH;
   const sctx = small.getContext("2d", { willReadFrequently: true });
   const auto = { prev: null, ema: 1, run: 0, steadyMs: 0, armed: true };
+
   function grabSmall() {
     const v = $("video");
     if (!v.videoWidth) return null;
@@ -2152,6 +2303,7 @@ window.MathJax = {
   }
   function blockDiff(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]); return s / a.length; }
   function rearmAuto(armed) { auto.armed = armed; auto.steadyMs = 0; auto.run = 0; }
+
   setInterval(() => {
     const on = state.live && state.backend === "api" && settings.auto && settings.apiKey.trim()
       && !document.hidden && $("settings").hidden;
@@ -2176,12 +2328,12 @@ window.MathJax = {
       else setAutoHint(reader.pass === 1 ? "Reading the answer" : "Repeating the answer");
       return;
     }
-    if (state.busy) { setRing(0); setAutoHint("Thinking"); return; }
+    if (state.busy) { setRing(0); setAutoHint("Thinking…"); return; }
     if (!auto.armed) { setRing(0); setAutoHint("Done. Move to the next question."); return; }
-    if (!content) { setRing(0); setAutoHint("Point at some text"); return; }
+    if (!content) { setRing(0); setAutoHint("Point at a question"); return; }
     if (!steady) { setRing(0); setAutoHint("Hold steady on a question"); return; }
     setRing(auto.steadyMs / hold);
-    setAutoHint("Hold still");
+    setAutoHint("Hold still…");
     const since = Date.now() - state.lastFire;
     if (auto.steadyMs >= hold && since > (settings.voiceOn ? 1200 : 2500) && Date.now() - reader.endedAt > 700) {
       rearmAuto(false);
@@ -2189,7 +2341,47 @@ window.MathJax = {
     }
   }, TICK);
 
-  // ---------- settings panel ----------
+  // ---------- Touch-Drag Sheet Physics ----------
+  (() => {
+    const sheet = $("sheet");
+    const gripArea = $("gripArea");
+    let startY = 0, moved = false;
+    gripArea.addEventListener("pointerdown", (e) => {
+      startY = e.clientY;
+      moved = false;
+      gripArea.setPointerCapture(e.pointerId);
+    });
+    gripArea.addEventListener("pointermove", (e) => {
+      if (!gripArea.hasPointerCapture(e.pointerId)) return;
+      const dy = e.clientY - startY;
+      if (Math.abs(dy) > 18) moved = true;
+    });
+    gripArea.addEventListener("pointerup", (e) => {
+      if (!gripArea.hasPointerCapture(e.pointerId)) return;
+      gripArea.releasePointerCapture(e.pointerId);
+      const dy = e.clientY - startY;
+      if (!moved) {
+        const ex = sheet.classList.toggle("expanded");
+        sheet.classList.remove("minimized");
+        $("grip").setAttribute("aria-expanded", String(ex));
+        return;
+      }
+      if (dy < -25) {
+        sheet.classList.add("expanded");
+        sheet.classList.remove("minimized");
+        $("grip").setAttribute("aria-expanded", "true");
+      } else if (dy > 25) {
+        if (sheet.classList.contains("expanded")) {
+          sheet.classList.remove("expanded");
+          $("grip").setAttribute("aria-expanded", "false");
+        } else {
+          sheet.classList.add("minimized");
+        }
+      }
+    });
+  })();
+
+  // ---------- Settings Panel ----------
   function seg(container, items, current, onPick) {
     container.innerHTML = "";
     items.forEach((it) => {
@@ -2268,12 +2460,13 @@ window.MathJax = {
     const api = state.backend === "api";
     $("keyField").hidden = !api;
     $("modelField").hidden = !api;
-    $("tierField").hidden = state.backend !== "sample";
+    $("tierField").hidden = !(api || state.backend === "sample");
     $("apiKey").value = settings.apiKey;
     $("gKey").value = settings.gKey || "";
     $("gCapCheck").checked = settings.gCap;
     $("autoCheck").checked = settings.auto;
     $("waitCheck").checked = settings.waitForVoice;
+    $("enhanceCheck").checked = settings.enhanceImage;
     $("stepsCheck").checked = settings.readSteps;
     $("againCheck").checked = settings.sayAgain;
     $("cuesCheck").checked = settings.cues;
@@ -2320,7 +2513,7 @@ window.MathJax = {
     updateMode();
   }
 
-  // ---------- wiring ----------
+  // ---------- Event Listeners ----------
   $("shutter").addEventListener("click", () => {
     unlock();
     if (state.busy) { if (state.ctl) state.ctl.abort(); return; }
@@ -2349,6 +2542,7 @@ window.MathJax = {
     store.set("facing", state.facing);
     startCamera();
   });
+  $("zoomBtn").addEventListener("click", cycleZoom);
   $("camRetry").addEventListener("click", startCamera);
   $("torchBtn").addEventListener("click", toggleTorch);
   $("autoChip").addEventListener("click", () => {
@@ -2357,6 +2551,7 @@ window.MathJax = {
     updateMode();
     toast(settings.auto ? "Auto answer on. Hold steady on a question." : "Auto answer off. Tap the shutter to answer.");
   });
+
   function paintMute() {
     const muted = !settings.voiceOn;
     $("muteBtn").classList.toggle("muted", muted);
@@ -2374,7 +2569,6 @@ window.MathJax = {
     toast(settings.voiceOn ? "Sound on. Answers will be read aloud." : "Muted. Answers show on screen only.");
   });
 
-  // player
   $("playBtn").addEventListener("click", () => {
     unlock();
     if (reader.state === "paused") { rResume(); return; }
@@ -2390,7 +2584,7 @@ window.MathJax = {
     save("rate", next === undefined ? SPEEDS[0] : next);
     paintPlayer();
     paintRanges();
-    toast("Reading speed " + fmtRate(settings.rate) + ". Applies from the next line.", null, 2200);
+    toast("Reading speed " + fmtRate(settings.rate), null, 2000);
   });
   $("copyBtn").addEventListener("click", () => {
     const c = state.current;
@@ -2404,16 +2598,10 @@ window.MathJax = {
     });
     const text = out.join("\n");
     try {
-      navigator.clipboard.writeText(text).then(() => toast("Copied."), () => toast("Copy isn't available here. Press and hold the answer to select it."));
-    } catch (e) { toast("Copy isn't available here. Press and hold the answer to select it."); }
-  });
-  $("grip").addEventListener("click", () => {
-    const ex = $("sheet").classList.toggle("expanded");
-    $("grip").setAttribute("aria-expanded", String(ex));
-    $("grip").setAttribute("aria-label", ex ? "Shrink answer" : "Expand answer");
+      navigator.clipboard.writeText(text).then(() => toast("Copied to clipboard."), () => toast("Press and hold the answer text to copy."));
+    } catch (e) { toast("Press and hold the answer text to copy."); }
   });
 
-  // settings
   $("settingsBtn").addEventListener("click", () => openSettings(false));
   $("settingsClose").addEventListener("click", closeSettings);
   $("settingsDone").addEventListener("click", closeSettings);
@@ -2429,15 +2617,15 @@ window.MathJax = {
     i.type = i.type === "password" ? "text" : "password";
     $("gKeyShow").textContent = i.type === "password" ? "Show" : "Hide";
   });
-  $("gKey").addEventListener("input", (e) => { save("gKey", e.target.value.trim()); setGStatus("Tap Test to check the key."); });
+  $("gKey").addEventListener("input", (e) => { save("gKey", e.target.value.trim()); setGStatus("Tap Test to verify your key."); });
   $("gVoice").addEventListener("change", (e) => save("gVoice", e.target.value));
   $("gCapCheck").addEventListener("change", (e) => save("gCap", e.target.checked));
   $("gTest").addEventListener("click", async () => {
     unlock();
     if (!String(settings.gKey || "").trim()) { setGStatus("Paste your Google API key first.", "bad"); return; }
-    if (settings.gCap && gUsage() >= G_CAP) { setGStatus("You've reached this month's free-tier cap.", "bad"); return; }
+    if (settings.gCap && gUsage() >= G_CAP) { setGStatus("Reached this month's free-tier cap.", "bad"); return; }
     const line = "This is your Google voice. x equals negative 3 over 4.";
-    setGStatus("Testing...");
+    setGStatus("Testing…");
     try {
       await gSynth(line);
       setGStatus("Key works. This voice will read your answers.", "ok");
@@ -2448,6 +2636,7 @@ window.MathJax = {
   });
   $("autoCheck").addEventListener("change", (e) => { save("auto", e.target.checked); rearmAuto(true); });
   $("waitCheck").addEventListener("change", (e) => save("waitForVoice", e.target.checked));
+  $("enhanceCheck").addEventListener("change", (e) => save("enhanceImage", e.target.checked));
   $("stepsCheck").addEventListener("change", (e) => save("readSteps", e.target.checked));
   $("againCheck").addEventListener("change", (e) => save("sayAgain", e.target.checked));
   $("cuesCheck").addEventListener("change", (e) => { unlock(); save("cues", e.target.checked); if (e.target.checked) cue("done"); });
@@ -2463,12 +2652,12 @@ window.MathJax = {
     }
   });
   $("rate").addEventListener("input", (e) => { save("rate", Number(e.target.value)); paintRanges(); paintPlayer(); });
-  $("volume").addEventListener("input", (e) => { save("volume", Number(e.target.value)); paintRanges(); });
+  $("volume").addEventListener("input", (e) => { save("volume", Number(e.target.value)); paintRanges(); syncAudioVolume(); });
   $("voiceSelect").addEventListener("change", (e) => save("voiceURI", e.target.value));
   $("extra").addEventListener("change", (e) => save("extra", e.target.value.trim()));
   $("studyMode").addEventListener("change", (e) => {
     save("studyMode", e.target.value === "active" ? "active" : "practice");
-    toast(settings.studyMode === "practice" ? "Study mode: practice / past exams." : "Study mode: active graded assessment (hints only).", null, 4000);
+    toast(settings.studyMode === "practice" ? "Study mode: practice / past material." : "Study mode: active graded assessment (hints only).", null, 3500);
   });
   $("testVoice").addEventListener("click", () => {
     unlock();
@@ -2487,7 +2676,7 @@ window.MathJax = {
     $("clearBtn").textContent = "Cleared";
   });
 
-  // ---------- start ----------
+  // ---------- Boot ----------
   paintMute();
   if (window.speechSynthesis) {
     loadVoices();
@@ -2518,10 +2707,9 @@ window.MathJax = {
   } else {
     updateMode();
     startCamera();
-    if (!settings.apiKey.trim()) toast("Open Settings and paste your Anthropic API key to start.", null, 6000);
+    if (!settings.apiKey.trim()) toast("Open Settings and paste your Anthropic API key to start.", null, 5500);
   }
-  // This GitHub-paste version is self-contained. An older Readout service worker
-  // may otherwise keep serving an obsolete index.html after a GitHub commit.
+
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((reg) => {
       if (reg.active && /(?:^|\/)sw\.js(?:$|\?)/.test(new URL(reg.active.scriptURL).pathname)) reg.unregister().catch(() => {});
